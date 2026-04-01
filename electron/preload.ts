@@ -1,0 +1,74 @@
+import { contextBridge, ipcRenderer } from 'electron'
+
+const api = {
+  search: (query: string) => ipcRenderer.invoke('search:query', query),
+
+  openNote: (path: string) => ipcRenderer.invoke('note:open', path),
+
+  hideWindow: () => ipcRenderer.send('window:hide'),
+
+  getSessionContext: () => ipcRenderer.invoke('session:context'),
+
+  sendAIQuery: (query: string) => ipcRenderer.send('ai:query', query),
+
+  captureNote: (content: string, suggestedPath: string) =>
+    ipcRenderer.invoke('capture:note', content, suggestedPath),
+
+  runCommand: (command: string, args: string) =>
+    ipcRenderer.invoke(`command:${command}`, args),
+
+  getAIProvider: () => ipcRenderer.invoke('ai:provider:get'),
+
+  setAIProvider: (provider: string) => ipcRenderer.invoke('ai:provider:set', provider),
+
+  onStreamChunk: (callback: (chunk: string, done: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { chunk: string; done: boolean }) => {
+      callback(data.chunk, data.done)
+    }
+    ipcRenderer.on('ai:chunk', handler)
+    return () => ipcRenderer.removeListener('ai:chunk', handler)
+  },
+
+  // Obsidian CLI
+  obsidianSearch: (query: string) => ipcRenderer.invoke('obsidian:search', query),
+
+  getDailyNote: () => ipcRenderer.invoke('obsidian:daily'),
+
+  appendToDaily: (content: string) => ipcRenderer.invoke('obsidian:daily:append', content),
+
+  getTags: () => ipcRenderer.invoke('obsidian:tags'),
+
+  getBacklinks: (name: string) => ipcRenderer.invoke('obsidian:backlinks', name),
+
+  readNote: (name: string) => ipcRenderer.invoke('obsidian:read', name),
+
+  moveNote: (file: string, to: string) => ipcRenderer.invoke('obsidian:move', file, to),
+
+  getProperties: (name: string) => ipcRenderer.invoke('obsidian:properties', name),
+
+  // Kanban
+  getKanbanSummary: () => ipcRenderer.invoke('kanban:summary'),
+  openUrl: (url: string) => ipcRenderer.invoke('open:url', url),
+
+  // Conversations
+  getConversations: () => ipcRenderer.invoke('conversation:list'),
+  loadConversation: (id: string) => ipcRenderer.invoke('conversation:load', id),
+  newConversation: () => ipcRenderer.invoke('conversation:new'),
+  deleteConversation: (id: string) => ipcRenderer.invoke('conversation:delete', id),
+
+  onWindowShown: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('window:shown', handler)
+    return () => ipcRenderer.removeListener('window:shown', handler)
+  },
+
+  onWindowHidden: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('window:hidden', handler)
+    return () => ipcRenderer.removeListener('window:hidden', handler)
+  },
+}
+
+contextBridge.exposeInMainWorld('launcher', api)
+
+console.log('[preload] launcher API exposed to renderer')
