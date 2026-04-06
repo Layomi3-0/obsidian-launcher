@@ -14,6 +14,7 @@ export class ObsidianCLI {
   private vaultPath: string | null = null
 
   setVaultPath(path: string): void { this.vaultPath = path }
+  getVaultPath(): string | null { return this.vaultPath }
   isAvailable(): boolean { return this.available }
 
   stop(): void {

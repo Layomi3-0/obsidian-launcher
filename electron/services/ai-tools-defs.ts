@@ -79,6 +79,28 @@ export const TOOL_DEFS: ToolDef[] = [
     requiresVault: true,
   },
   {
+    name: "insert_in_note",
+    description:
+      "Insert content into an existing note at a specific location. Use this when you need to add a section to a specific place in a note (e.g. under a heading) without rewriting the entire note. Provide an anchor string that exists in the note — the new content will be inserted immediately after that anchor.",
+    properties: {
+      name: {
+        type: "string",
+        description: "Note title (without .md extension)",
+      },
+      anchor: {
+        type: "string",
+        description:
+          "A unique string already in the note to insert after (e.g. a heading like '## Concrete Optimizations'). Content is inserted on a new line after the first match.",
+      },
+      content: {
+        type: "string",
+        description: "The content to insert after the anchor",
+      },
+    },
+    required: ["name", "anchor", "content"],
+    requiresVault: true,
+  },
+  {
     name: "read_note",
     description:
       "Read the full content of a note from the vault. Use this when you need to see a note's current content before modifying it, or to answer a question about it.",
@@ -118,6 +140,57 @@ export const TOOL_DEFS: ToolDef[] = [
     },
     required: ["query"],
     requiresVault: true,
+  },
+  {
+    name: "read_soul",
+    description:
+      "Read your current SOUL.md personality file. Use this before making edits so you can see the full current content.",
+    properties: {},
+    required: [],
+  },
+  {
+    name: "edit_soul",
+    description:
+      "Update your SOUL.md personality file. Use this when the user asks you to change your personality, tone, voice, or behavior. Always read_soul first to see the current content, then provide the complete updated file.",
+    properties: {
+      content: {
+        type: "string",
+        description: "The complete new content for SOUL.md (replaces everything)",
+      },
+    },
+    required: ["content"],
+  },
+  {
+    name: "save_preference",
+    description:
+      "Save or update a user preference. Use this when the user says 'remember', 'always do X', 'I prefer', 'from now on', or expresses any persistent preference about how you should behave, format notes, name things, etc. Also use this to remove a preference when asked to forget something. Preferences persist across all future sessions.",
+    properties: {
+      key: {
+        type: "string",
+        description: "Short identifier for the preference (e.g. 'note-format', 'tone', 'tagging-style', 'name')",
+      },
+      value: {
+        type: "string",
+        description: "The preference value to save. Set to empty string to remove a preference.",
+      },
+    },
+    required: ["key", "value"],
+  },
+  {
+    name: "get_preferences",
+    description:
+      "Read all saved user preferences. Use this when you need to check what the user has asked you to remember, or when the user asks what preferences you have stored.",
+    properties: {},
+    required: [],
+  },
+  {
+    name: "fetch_url",
+    description:
+      "Fetch the content of a web page URL. Use this when the user shares a link and wants you to read, summarize, or work with the page content. Supports HTML pages, articles, and text content.",
+    properties: {
+      url: { type: "string", description: "The full URL to fetch (must include https://)" },
+    },
+    required: ["url"],
   },
   {
     name: "fetch_youtube_transcript",

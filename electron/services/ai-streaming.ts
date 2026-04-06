@@ -2,13 +2,15 @@ import type { GoogleGenerativeAI } from '@google/generative-ai'
 import type Anthropic from '@anthropic-ai/sdk'
 import { getClaudeTools, getGeminiTools, executeTool } from './ai-tools'
 import type { ObsidianCLI } from './obsidian-cli'
+import type { Attachment } from '../ai-handler'
 
 export interface StreamOptions {
   disableTools?: boolean
   conversationHistory?: { role: string; content: string }[]
+  attachments?: Attachment[]
 }
 
-const MAX_TOOL_TURNS = 5
+const MAX_TOOL_TURNS = 15
 
 function formatToolResult(result: { success: boolean; displayMessage: string }): string {
   return `\n\n> ${result.success ? '✓' : '✗'} ${result.displayMessage}\n\n`
@@ -25,9 +27,11 @@ export async function* streamGemini(
   options?: StreamOptions,
 ): AsyncGenerator<string> {
   const chat = startGeminiChat(geminiClient, model, systemPrompt, obsidianCLI, options)
-  let response = await chat.sendMessageStream(userMessage)
+  const messageParts = buildGeminiMessageParts(userMessage, options?.attachments ?? [])
+  let response = await chat.sendMessageStream(messageParts)
   console.log(`[ai:gemini] Streaming... (history: ${(options?.conversationHistory ?? []).length} msgs)`)
 
+  let hitLimit = false
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const functionCalls = yield* consumeGeminiStream(response)
     if (functionCalls.length === 0) break
@@ -39,7 +43,17 @@ export async function* streamGemini(
       toolResults.push(toGeminiToolResponse(fc.name, result))
     }
 
+    if (turn === MAX_TOOL_TURNS - 1) {
+      hitLimit = true
+      break
+    }
+
     response = await chat.sendMessageStream(toolResults)
+  }
+
+  if (hitLimit) {
+    console.warn(`[ai:gemini] Hit tool turn limit (${MAX_TOOL_TURNS})`)
+    yield '\n\n> ⚠ I ran out of tool turns before finishing. Please try again or break your request into smaller steps.\n\n'
   }
 
   console.log('[ai:gemini] Stream complete')
@@ -95,6 +109,17 @@ function toGeminiToolResponse(name: string, result: { message: string; success: 
   return { functionResponse: { name, response: { result: result.message, success: result.success } } }
 }
 
+function buildGeminiMessageParts(text: string, attachments: Attachment[]): any[] {
+  const parts: any[] = []
+  for (const att of attachments) {
+    if (att.mimeType.startsWith('image/')) {
+      parts.push({ inlineData: { mimeType: att.mimeType, data: att.base64 } })
+    }
+  }
+  parts.push({ text })
+  return parts
+}
+
 // --- Claude ---
 
 export async function* streamClaude(
@@ -107,10 +132,12 @@ export async function* streamClaude(
 ): AsyncGenerator<string> {
   const vaultAvailable = obsidianCLI?.isAvailable() ?? false
   const tools = options?.disableTools ? [] : getClaudeTools(vaultAvailable)
-  const messages = toClaudeMessages(options?.conversationHistory ?? [], userMessage)
-  console.log(`[ai:claude] Messages: ${messages.length} (${(options?.conversationHistory ?? []).length} history + 1 new)`)
+  const messages = toClaudeMessages(options?.conversationHistory ?? [], userMessage, options?.attachments ?? [])
+  console.log(`[ai:claude] Messages: ${messages.length} (${(options?.conversationHistory ?? []).length} history + 1 new, ${(options?.attachments ?? []).length} attachments)`)
 
+  let hitLimit = false
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    if (turn > 0) ageToolResults(messages)
     const stream = startClaudeStream(anthropicClient, model, systemPrompt, messages, tools)
     const { textParts, toolBlocks } = yield* consumeClaudeStream(stream)
     if (toolBlocks.length === 0) break
@@ -124,19 +151,46 @@ export async function* streamClaude(
       toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result.message })
     }
 
+    if (turn === MAX_TOOL_TURNS - 1) {
+      hitLimit = true
+      break
+    }
+
     messages.push({ role: 'user', content: toolResults })
+  }
+
+  if (hitLimit) {
+    console.warn(`[ai:claude] Hit tool turn limit (${MAX_TOOL_TURNS})`)
+    yield '\n\n> ⚠ I ran out of tool turns before finishing. Please try again or break your request into smaller steps.\n\n'
   }
 }
 
 function toClaudeMessages(
   history: { role: string; content: string }[],
   userMessage: string,
+  attachments: Attachment[] = [],
 ): Anthropic.MessageParam[] {
   const messages: Anthropic.MessageParam[] = history.map(msg => ({
     role: msg.role as 'user' | 'assistant',
     content: msg.content,
   }))
-  messages.push({ role: 'user', content: userMessage })
+
+  if (attachments.length > 0) {
+    const contentBlocks: any[] = []
+    for (const att of attachments) {
+      if (att.mimeType.startsWith('image/')) {
+        contentBlocks.push({
+          type: 'image',
+          source: { type: 'base64', media_type: att.mimeType, data: att.base64 },
+        })
+      }
+    }
+    contentBlocks.push({ type: 'text', text: userMessage })
+    messages.push({ role: 'user', content: contentBlocks })
+  } else {
+    messages.push({ role: 'user', content: userMessage })
+  }
+
   return messages
 }
 
@@ -147,7 +201,7 @@ function startClaudeStream(
   messages: Anthropic.MessageParam[],
   tools: any[],
 ) {
-  const config: any = { model, max_tokens: 4096, system: systemPrompt, messages }
+  const config: any = { model, max_tokens: 32768, system: systemPrompt, messages }
   if (tools.length > 0) config.tools = tools
   return client.messages.stream(config)
 }
@@ -190,6 +244,44 @@ async function* consumeClaudeStream(stream: any): AsyncGenerator<string, ClaudeS
   }
 
   return { textParts, toolBlocks }
+}
+
+// ── Tool Result Aging ──
+// After the model has consumed tool results, older ones are replaced with
+// a short placeholder. The tool_use record stays so the model knows it
+// made the call, but the bulky payload is dropped.
+
+const KEEP_RECENT_TOOL_RESULTS = 15
+
+function ageToolResults(messages: any[]): void {
+  let recentSeen = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role !== 'user' || !Array.isArray(msg.content)) continue
+
+    for (let j = msg.content.length - 1; j >= 0; j--) {
+      const block = msg.content[j]
+      if (block.type !== 'tool_result') continue
+
+      recentSeen++
+      if (recentSeen > KEEP_RECENT_TOOL_RESULTS) {
+        const originalLen = typeof block.content === 'string' ? block.content.length : 0
+        const toolName = findToolName(messages, block.tool_use_id, i)
+        block.content = `[Tool result consumed — ${toolName}, ${originalLen} chars]`
+      }
+    }
+  }
+}
+
+function findToolName(messages: any[], toolUseId: string, beforeIndex: number): string {
+  for (let i = beforeIndex - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue
+    for (const block of msg.content) {
+      if (block.type === 'tool_use' && block.id === toolUseId) return block.name
+    }
+  }
+  return 'unknown'
 }
 
 function toAssistantContent(textParts: string[], toolBlocks: ClaudeToolBlock[]): any[] {

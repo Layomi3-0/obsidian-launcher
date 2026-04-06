@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { SearchResult, Conversation } from '@/lib/types'
+import type { SearchResult, Conversation, Attachment } from '@/lib/types'
 import {
   search as ipcSearch,
   sendAIQuery,
@@ -15,6 +15,7 @@ type SearchMode = 'local' | 'ai' | 'idle' | 'history'
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  attachments?: Attachment[]
 }
 
 interface UseSearchReturn {
@@ -25,12 +26,15 @@ interface UseSearchReturn {
   chatMessages: ChatMessage[]
   isStreaming: boolean
   conversations: Conversation[]
+  attachments: Attachment[]
   setQuery: (query: string) => void
   sendMessage: () => void
   clearSearch: () => void
   showHistory: () => void
   selectConversation: (conv: Conversation) => void
   startNewConversation: () => void
+  addAttachments: (files: Attachment[]) => void
+  removeAttachment: (id: string) => void
 }
 
 export function useSearch(): UseSearchReturn {
@@ -41,12 +45,12 @@ export function useSearch(): UseSearchReturn {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [conversations, setConversations] = useState<Conversation[]>([])
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const streamBufferRef = useRef('')
 
-  // On hide: clear transient UI (query, results, history) but preserve active chat
+  // On hide: clear transient search results and history list, but preserve query text and chat
   useEffect(() => {
     return onWindowHidden(() => {
-      setQueryState('')
       setResults([])
       setConversations([])
     })
@@ -118,9 +122,13 @@ export function useSearch(): UseSearchReturn {
 
   const sendMessage = useCallback(() => {
     const text = query.replace(/^[>/]\s*/, '').trim()
-    if (!text || isStreaming) return
+    if ((!text && attachments.length === 0) || isStreaming) return
 
-    const userMsg: ChatMessage = { role: 'user', content: text }
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: text || (attachments.length > 0 ? `[${attachments.length} image${attachments.length > 1 ? 's' : ''} attached]` : ''),
+      attachments: attachments.length > 0 ? [...attachments] : undefined,
+    }
     const assistantMsg: ChatMessage = { role: 'assistant', content: '' }
 
     setChatMessages(prev => [...prev, userMsg, assistantMsg])
@@ -130,9 +138,10 @@ export function useSearch(): UseSearchReturn {
     setIsStreaming(true)
     streamBufferRef.current = ''
 
-    sendAIQuery('>' + text)
+    sendAIQuery('>' + (text || 'Describe this image'), attachments.length > 0 ? attachments : undefined)
     setQueryState('')
-  }, [query, isStreaming])
+    setAttachments([])
+  }, [query, isStreaming, attachments])
 
   const clearSearch = useCallback(() => {
     setQueryState('')
@@ -140,9 +149,9 @@ export function useSearch(): UseSearchReturn {
     setMode('idle')
     setChatMessages([])
     setConversations([])
+    setAttachments([])
     setIsStreaming(false)
     streamBufferRef.current = ''
-    // Start a new session when explicitly clearing
     ipcNewConversation()
   }, [])
 
@@ -170,8 +179,27 @@ export function useSearch(): UseSearchReturn {
       setMode('idle')
       setChatMessages([])
       setConversations([])
+      setAttachments([])
     })
   }, [])
+
+  const addAttachments = useCallback((files: Attachment[]) => {
+    setAttachments(prev => [...prev, ...files])
+    if (mode === 'idle' || mode === 'local') {
+      setMode('ai')
+      setResults([])
+    }
+  }, [mode])
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments(prev => {
+      const next = prev.filter(a => a.id !== id)
+      if (next.length === 0 && !query.startsWith('>') && !query.startsWith('/') && chatMessages.length === 0) {
+        setMode('idle')
+      }
+      return next
+    })
+  }, [query, chatMessages.length])
 
   return {
     query,
@@ -181,11 +209,14 @@ export function useSearch(): UseSearchReturn {
     chatMessages,
     isStreaming,
     conversations,
+    attachments,
     setQuery,
     sendMessage,
     clearSearch,
     showHistory,
     selectConversation,
     startNewConversation,
+    addAttachments,
+    removeAttachment,
   }
 }

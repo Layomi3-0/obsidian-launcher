@@ -1,4 +1,4 @@
-import type { SearchResult, SessionContext, Conversation, ChatMessage, ObsidianSearchResult, ObsidianTag, KanbanSummary } from './types'
+import type { SearchResult, SessionContext, Conversation, ChatMessage, Attachment, ObsidianSearchResult, ObsidianTag, KanbanSummary } from './types'
 
 function api() {
   return window.launcher ?? null
@@ -16,6 +16,18 @@ export function hideWindow(): void {
   api()?.hideWindow()
 }
 
+export function setCompact(): void {
+  api()?.setCompact()
+}
+
+export function setExpanded(): void {
+  api()?.setExpanded()
+}
+
+export function onCompactChange(callback: (compact: boolean) => void): () => void {
+  return api()?.onCompactChange(callback) ?? (() => {})
+}
+
 export function getSessionContext(): Promise<SessionContext> {
   return api()?.getSessionContext() ?? Promise.resolve({
     sessionId: `session-${Date.now()}`,
@@ -27,8 +39,8 @@ export function getSessionContext(): Promise<SessionContext> {
   })
 }
 
-export function sendAIQuery(query: string): void {
-  api()?.sendAIQuery(query)
+export function sendAIQuery(query: string, attachments?: Attachment[]): void {
+  api()?.sendAIQuery(query, attachments)
 }
 
 export function captureNote(content: string, suggestedPath: string) {

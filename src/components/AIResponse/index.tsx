@@ -59,7 +59,37 @@ function ThinkingDots() {
   )
 }
 
-function UserBubble({ content }: { content: string }) {
+function AttachmentLabel({ count }: { count: number }) {
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      padding: '2px 7px',
+      borderRadius: '5px',
+      background: 'rgba(168, 140, 255, 0.15)',
+      border: '1px solid rgba(168, 140, 255, 0.2)',
+      fontSize: '10.5px',
+      fontWeight: 500,
+      color: 'rgba(168, 140, 255, 0.8)',
+      lineHeight: 1,
+      fontFamily: "'SF Mono', Menlo, monospace",
+    }}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21 15 16 10 5 21" />
+      </svg>
+      {count} image{count > 1 ? 's' : ''}
+    </span>
+  )
+}
+
+function UserBubble({ content, attachments }: { content: string; attachments?: import('@/lib/types').Attachment[] }) {
+  const imageCount = attachments?.filter(a => a.mimeType.startsWith('image/')).length ?? 0
+  const isPlaceholder = imageCount > 0 && /^\[\d+ images? attached\]$/.test(content)
+  const showText = content && !isPlaceholder
+
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 20px' }}>
       <div
@@ -72,9 +102,14 @@ function UserBubble({ content }: { content: string }) {
           color: 'rgba(255,255,255,0.88)',
           fontSize: '13px',
           lineHeight: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: imageCount > 0 && showText ? '6px' : '0px',
         }}
       >
-        {content}
+        {imageCount > 0 && <AttachmentLabel count={imageCount} />}
+        {showText && <div>{content}</div>}
+        {!showText && imageCount === 0 && <div>{content}</div>}
       </div>
     </div>
   )
@@ -160,7 +195,7 @@ export function AIResponse({ messages, isStreaming }: AIResponseProps) {
       {messages.map((msg, i) => {
         const isLast = i === messages.length - 1
         if (msg.role === 'user') {
-          return <UserBubble key={i} content={msg.content} />
+          return <UserBubble key={i} content={msg.content} attachments={msg.attachments} />
         }
         return (
           <AssistantBubble

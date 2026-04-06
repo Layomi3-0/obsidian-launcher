@@ -110,7 +110,7 @@ html, body, #root {
 
 /* ── Glass morphism utility ── */
 :root {
-  --glass-opacity: 0.82;
+  --glass-opacity: 1;
 }
 
 .glass {
@@ -353,4 +353,18 @@ kbd:hover {
 
 .markdown-body > *:last-child {
   margin-bottom: 0;
+}
+
+/* ── Attachment thumbnails ── */
+.attachment-thumb:hover {
+  border-color: rgba(168, 140, 255, 0.3) !important;
+}
+
+.attachment-thumb:hover .attachment-remove-btn {
+  opacity: 1 !important;
+}
+
+/* Hide scrollbar on attachment strip */
+.attachment-strip::-webkit-scrollbar {
+  display: none;
 }

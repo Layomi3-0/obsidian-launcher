@@ -25,9 +25,18 @@ export interface Conversation {
   message_count: number
 }
 
+export interface Attachment {
+  id: string
+  name: string
+  mimeType: string
+  base64: string
+  size: number
+}
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  attachments?: Attachment[]
 }
 
 export interface ObsidianSearchResult {
@@ -65,8 +74,11 @@ export interface LauncherAPI {
   search(query: string): Promise<SearchResult[]>
   openNote(path: string): Promise<void>
   hideWindow(): void
+  setCompact(): void
+  setExpanded(): void
+  onCompactChange(callback: (compact: boolean) => void): () => void
   getSessionContext(): Promise<SessionContext>
-  sendAIQuery(query: string): void
+  sendAIQuery(query: string, attachments?: Attachment[]): void
   captureNote(content: string, suggestedPath: string): Promise<{ success: boolean; path?: string; error?: string }>
   runCommand(command: string, args: string): Promise<{ success: boolean; message?: string }>
   getAIProvider(): Promise<{ current: string; available: string[] }>

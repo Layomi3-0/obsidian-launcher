@@ -41,7 +41,7 @@ function loadOpacity(): number {
     const saved = localStorage.getItem('launcher-opacity')
     if (saved) return parseFloat(saved)
   } catch {}
-  return 0.82
+  return 1
 }
 
 export function StatusBar({ mode, resultCount }: StatusBarProps) {

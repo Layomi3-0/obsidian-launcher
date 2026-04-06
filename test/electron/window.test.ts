@@ -10,7 +10,9 @@ const mockWindow = {
   blur: vi.fn(),
   focus: vi.fn(),
   getSize: vi.fn(() => [680, 520]),
+  getPosition: vi.fn(() => [620, 200]),
   setSize: vi.fn(),
+  setMinimumSize: vi.fn(),
   setPosition: vi.fn(),
   setIgnoreMouseEvents: vi.fn(),
   setVisibleOnAllWorkspaces: vi.fn(),
@@ -25,7 +27,10 @@ function MockBrowserWindow() { return mockWindow }
 vi.mock('electron', () => ({
   app: { getAppPath: () => '/mock/app', isQuitting: false },
   BrowserWindow: MockBrowserWindow,
-  screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 1920 } }) },
+  screen: {
+    getPrimaryDisplay: () => ({ workAreaSize: { width: 1920 } }),
+    getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }],
+  },
 }))
 
 type WindowModule = typeof import('../../electron/window')
@@ -158,7 +163,8 @@ describe('hide → show round-trip', () => {
 
     showWindow()
     expect(mockWindow.setSize).toHaveBeenCalledWith(680, 520)
-    expect(mockWindow.setPosition).toHaveBeenCalledWith(620, 180)
+    // Position is restored from where the window was before hide
+    expect(mockWindow.setPosition).toHaveBeenCalledWith(620, 200)
     expect(mockWindow.show).toHaveBeenCalled()
     expect(mockWindow.focus).toHaveBeenCalled()
   })

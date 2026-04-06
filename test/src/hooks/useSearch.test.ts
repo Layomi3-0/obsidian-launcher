@@ -130,7 +130,7 @@ describe('useSearch', () => {
       expect(result.current.chatMessages).toHaveLength(2)
       expect(result.current.chatMessages[0]).toEqual({ role: 'user', content: 'summarize my notes' })
       expect(result.current.chatMessages[1]).toEqual({ role: 'assistant', content: '' })
-      expect(mockSendAIQuery).toHaveBeenCalledWith('>summarize my notes')
+      expect(mockSendAIQuery).toHaveBeenCalledWith('>summarize my notes', undefined)
       expect(result.current.isStreaming).toBe(true)
       expect(result.current.query).toBe('')
     })

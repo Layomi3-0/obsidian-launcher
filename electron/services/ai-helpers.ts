@@ -2,6 +2,32 @@ import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 
+// ── Context Budget ──
+
+export const CONTEXT_BUDGET = {
+  SYSTEM_PROMPT: 2000,
+  VAULT_CONTEXT: 12_000,
+  HISTORY: 48_000,
+  MAX_TOOL_OUTPUT: 12_000,
+} as const
+
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
+export function truncateToTokenBudget(text: string, maxTokens: number): string {
+  const maxChars = maxTokens * 4
+  if (text.length <= maxChars) return text
+
+  const totalTokens = estimateTokens(text)
+  const sliced = text.slice(0, maxChars)
+  const lastNewline = sliced.lastIndexOf('\n')
+  const cutPoint = lastNewline > maxChars * 0.8 ? lastNewline : maxChars
+  return sliced.slice(0, cutPoint) + `\n\n[... truncated, ${totalTokens} tokens total]`
+}
+
+// ── Config ──
+
 export type AIProvider = 'gemini' | 'claude'
 
 export interface AIConfig {
@@ -71,11 +97,13 @@ export function buildUserMessage(
   contextChunks: string[],
   recentHistory: string,
   lastNoteOpened: string | null,
+  maxContextChars?: number,
 ): string {
   const parts: string[] = []
 
   if (contextChunks.length > 0) {
-    parts.push('## Relevant vault context\n' + contextChunks.join('\n\n---\n\n'))
+    const budgeted = budgetChunks(contextChunks, maxContextChars)
+    parts.push('## Relevant vault context\n' + budgeted.join('\n\n---\n\n'))
   }
   if (recentHistory) {
     parts.push('## Recent queries this session\n' + recentHistory)
@@ -87,6 +115,19 @@ export function buildUserMessage(
   parts.push('## Query\n' + query.replace(/^[/>]\s*/, '').trim())
 
   return parts.join('\n\n')
+}
+
+function budgetChunks(chunks: string[], maxChars?: number): string[] {
+  if (!maxChars) return chunks
+
+  const result: string[] = []
+  let used = 0
+  for (const chunk of chunks) {
+    if (used + chunk.length > maxChars) break
+    result.push(chunk)
+    used += chunk.length
+  }
+  return result.length > 0 ? result : [chunks[0]]
 }
 
 export const MAP_SYSTEM_PROMPT = `You are a project status extractor. Given a project note from an Obsidian vault, extract structured information.

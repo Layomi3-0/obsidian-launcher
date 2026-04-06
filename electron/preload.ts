@@ -6,10 +6,19 @@ const api = {
   openNote: (path: string) => ipcRenderer.invoke('note:open', path),
 
   hideWindow: () => ipcRenderer.send('window:hide'),
+  setCompact: () => ipcRenderer.send('window:compact'),
+  setExpanded: () => ipcRenderer.send('window:expand'),
+
+  onCompactChange: (callback: (compact: boolean) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, value: boolean) => callback(value)
+    ipcRenderer.on('window:compact', handler)
+    return () => ipcRenderer.removeListener('window:compact', handler)
+  },
 
   getSessionContext: () => ipcRenderer.invoke('session:context'),
 
-  sendAIQuery: (query: string) => ipcRenderer.send('ai:query', query),
+  sendAIQuery: (query: string, attachments?: { id: string; name: string; mimeType: string; base64: string; size: number }[]) =>
+    ipcRenderer.send('ai:query', query, attachments ?? []),
 
   captureNote: (content: string, suggestedPath: string) =>
     ipcRenderer.invoke('capture:note', content, suggestedPath),

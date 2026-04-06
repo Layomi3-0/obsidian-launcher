@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import type { AIService } from './services/ai'
 import type { MemoryService } from './services/memory'
+import { estimateTokens, CONTEXT_BUDGET } from './services/ai-helpers'
 
 // ── Session State ──
 
@@ -38,6 +39,16 @@ export function isFirstInvocationToday(): boolean {
   return false
 }
 
+// ── Attachment Type ──
+
+export interface Attachment {
+  id: string
+  name: string
+  mimeType: string
+  base64: string
+  size: number
+}
+
 // ── AI Query ──
 
 export async function handleAIQuery(
@@ -45,8 +56,9 @@ export async function handleAIQuery(
   mainWindow: BrowserWindow | null,
   aiService: AIService,
   memoryService: MemoryService,
+  attachments: Attachment[] = [],
 ): Promise<void> {
-  console.log('[ai:query] Received:', query.slice(0, 80))
+  console.log('[ai:query] Received:', query.slice(0, 80), `(${attachments.length} attachments)`)
   const sender = createChunkSender(mainWindow)
 
   if (!aiService.isAvailable()) {
@@ -57,7 +69,7 @@ export async function handleAIQuery(
 
   ensureConversationExists(memoryService, query)
   const sessionContext = buildSessionContext(memoryService)
-  const fullResponse = await streamToRenderer(aiService, sender, query, sessionContext)
+  const fullResponse = await streamToRenderer(aiService, sender, query, sessionContext, attachments)
 
   memoryService.logInteraction(query, null, fullResponse, currentSessionId)
   console.log('[ai:query] Complete, response length:', fullResponse.length)
@@ -78,7 +90,7 @@ function buildSessionContext(memoryService: MemoryService) {
   return {
     recentQueries: recentInteractions.map(i => i.query),
     lastNoteOpened,
-    conversationHistory: capHistory(allMessages, 10),
+    conversationHistory: budgetHistory(allMessages, CONTEXT_BUDGET.HISTORY),
   }
 }
 
@@ -87,11 +99,12 @@ async function streamToRenderer(
   sender: ChunkSender,
   query: string,
   sessionContext: { recentQueries: string[]; lastNoteOpened: string | null; conversationHistory: ConversationMessage[] },
+  attachments: Attachment[] = [],
 ): Promise<string> {
   let fullResponse = ''
 
   try {
-    for await (const chunk of aiService.streamQuery(query, sessionContext)) {
+    for await (const chunk of aiService.streamQuery(query, sessionContext, attachments)) {
       fullResponse += chunk
       sender.send(chunk)
     }
@@ -120,11 +133,27 @@ function createChunkSender(window: BrowserWindow | null): ChunkSender {
 
 type ConversationMessage = { role: 'user' | 'assistant'; content: string }
 
-function capHistory(messages: { role: string; content: string }[], maxExchanges: number): ConversationMessage[] {
+function budgetHistory(messages: { role: string; content: string }[], tokenBudget: number): ConversationMessage[] {
   const typed = messages as ConversationMessage[]
-  if (typed.length <= maxExchanges * 2) return typed
+  if (typed.length === 0) return []
 
-  const firstExchange = typed.slice(0, 2)
-  const recentExchanges = typed.slice(-(maxExchanges - 1) * 2)
-  return [...firstExchange, ...recentExchanges]
+  const totalTokens = typed.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  if (totalTokens <= tokenBudget) return typed
+
+  // Always keep last 3 exchanges verbatim
+  const recentCount = Math.min(6, typed.length)
+  const recent = typed.slice(-recentCount)
+  let usedTokens = recent.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+
+  // Fill remaining budget with older messages, newest-first
+  const older = typed.slice(0, -recentCount)
+  const kept: ConversationMessage[] = []
+  for (let i = older.length - 1; i >= 0; i--) {
+    const msgTokens = estimateTokens(older[i].content)
+    if (usedTokens + msgTokens > tokenBudget) break
+    kept.unshift(older[i])
+    usedTokens += msgTokens
+  }
+
+  return [...kept, ...recent]
 }

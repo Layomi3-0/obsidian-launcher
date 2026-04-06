@@ -8,7 +8,7 @@ import { MemoryService } from './services/memory'
 import { AIService } from './services/ai'
 import { ObsidianCLI } from './services/obsidian-cli'
 import { loadConfig } from './config'
-import { hideWindow } from './window'
+import { hideWindow, setCompact, setExpanded } from './window'
 import { handleAIQuery, getCurrentSessionId, setCurrentSessionId, resetSessionId, getLastNoteOpened, setLastNoteOpened, isFirstInvocationToday } from './ai-handler'
 
 interface Services {
@@ -27,6 +27,8 @@ export function registerIpcHandlers({
   obsidianCLI,
 }: Services): void {
   ipcMain.on('window:hide', () => hideWindow())
+  ipcMain.on('window:compact', () => setCompact())
+  ipcMain.on('window:expand', () => setExpanded())
 
   ipcMain.handle('search:query', async (_event, query: string) => {
     const frecencyScores = memoryService.getFrecencyScores()
@@ -84,8 +86,8 @@ export function registerIpcHandlers({
     }
   })
 
-  ipcMain.on('ai:query', (_event, query: string) => {
-    handleAIQuery(query, mainWindow, aiService, memoryService).catch((err) => {
+  ipcMain.on('ai:query', (_event, query: string, attachments?: { id: string; name: string; mimeType: string; base64: string; size: number }[]) => {
+    handleAIQuery(query, mainWindow, aiService, memoryService, attachments ?? []).catch((err) => {
       console.error('[ai:query] Unhandled error:', err)
       mainWindow?.webContents.send('ai:chunk', {
         chunk: `Error: ${err instanceof Error ? err.message : String(err)}`,

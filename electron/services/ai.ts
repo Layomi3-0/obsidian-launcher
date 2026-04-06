@@ -5,10 +5,11 @@ import type { SearchService } from './search'
 import type { MemoryService } from './memory'
 import type { VaultService } from './vault'
 import type { ObsidianCLI } from './obsidian-cli'
-import { loadAIConfig, formatNoteChunk, buildUserMessage } from './ai-helpers'
+import { loadAIConfig, formatNoteChunk, buildUserMessage, CONTEXT_BUDGET } from './ai-helpers'
 import type { AIConfig, AIProvider } from './ai-helpers'
 import { streamGemini, streamClaude } from './ai-streaming'
 import { streamBriefing } from './ai-briefing'
+import type { Attachment } from '../ai-handler'
 
 export type { AIProvider } from './ai-helpers'
 
@@ -81,7 +82,7 @@ export class AIService {
     return providers
   }
 
-  async *streamQuery(query: string, session: SessionContext): AsyncGenerator<string> {
+  async *streamQuery(query: string, session: SessionContext, attachments: Attachment[] = []): AsyncGenerator<string> {
     if (!this.isAvailable()) {
       yield 'No AI provider configured. Add API keys to ~/.quick-launcher/config.toml'
       return
@@ -96,7 +97,7 @@ export class AIService {
       return
     }
 
-    yield* this.streamWithContext(query, skill, systemPrompt, recentHistory, session)
+    yield* this.streamWithContext(query, skill, systemPrompt, recentHistory, session, attachments)
   }
 
   async embedText(text: string): Promise<Float32Array | null> {
@@ -113,24 +114,27 @@ export class AIService {
     systemPrompt: string,
     recentHistory: string,
     session: SessionContext,
+    attachments: Attachment[] = [],
   ): AsyncGenerator<string> {
     const relevantContext = await this.gatherContext(query, skill)
-    const userMessage = buildUserMessage(query, relevantContext, recentHistory, session.lastNoteOpened)
+    const userMessage = buildUserMessage(query, relevantContext, recentHistory, session.lastNoteOpened, CONTEXT_BUDGET.VAULT_CONTEXT * 4)
     const history = session.conversationHistory ?? []
-    console.log(`[ai] Context: ${relevantContext.length} chunks, History: ${history.length} msgs, Provider: ${this.config.provider}`)
+    console.log(`[ai] Context: ${relevantContext.length} chunks, History: ${history.length} msgs, Attachments: ${attachments.length}, Provider: ${this.config.provider}`)
+    logPromptDetails(systemPrompt, userMessage)
 
-    yield* this.streamViaProvider(systemPrompt, userMessage, history)
+    yield* this.streamViaProvider(systemPrompt, userMessage, history, attachments)
   }
 
   private async *streamViaProvider(
     systemPrompt: string,
     userMessage: string,
     history: { role: string; content: string }[],
+    attachments: Attachment[] = [],
   ): AsyncGenerator<string> {
     if (this.config.provider === 'claude' && this.anthropicClient) {
-      yield* streamClaude(this.anthropicClient, this.config.anthropicModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history })
+      yield* streamClaude(this.anthropicClient, this.config.anthropicModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments })
     } else if (this.geminiClient) {
-      yield* streamGemini(this.geminiClient, this.config.geminiModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history })
+      yield* streamGemini(this.geminiClient, this.config.geminiModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments })
     } else {
       yield 'Selected provider is not configured. Check your API keys.'
     }
@@ -210,6 +214,20 @@ export class AIService {
     if (this.anthropicClient) return 'claude'
     return null
   }
+}
+
+function logPromptDetails(systemPrompt: string, userMessage: string): void {
+  const sections = systemPrompt.split('\n\n---\n\n')
+  console.log('[ai:prompt] ═══════════════════════════════════════')
+  console.log(`[ai:prompt] System prompt: ${systemPrompt.length} chars, ${sections.length} sections`)
+  for (let i = 0; i < sections.length; i++) {
+    const preview = sections[i].slice(0, 80).replace(/\n/g, ' ')
+    console.log(`[ai:prompt]   [${i + 1}] ${preview}...`)
+  }
+  console.log(`[ai:prompt] User message: ${userMessage.length} chars`)
+  const userPreview = userMessage.slice(0, 200).replace(/\n/g, ' ')
+  console.log(`[ai:prompt]   ${userPreview}...`)
+  console.log('[ai:prompt] ═══════════════════════════════════════')
 }
 
 function formatRecentQueries(queries: string[]): string {

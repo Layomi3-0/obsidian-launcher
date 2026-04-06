@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { SearchInput } from './components/SearchInput'
 import { ResultsList } from './components/ResultsList'
 import { AIResponse } from './components/AIResponse'
@@ -11,13 +11,14 @@ import type { SlashCommand } from './components/CommandPalette'
 import { useSearch } from './hooks/useSearch'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useSession } from './hooks/useSession'
-import { openNote, hideWindow } from './lib/ipc'
+import { openNote, hideWindow, setCompact, setExpanded, onCompactChange } from './lib/ipc'
 import type { SearchResult, Conversation } from './lib/types'
 
 export function App() {
   const {
-    query, results, mode, chatMessages, isStreaming, conversations,
+    query, results, mode, chatMessages, isStreaming, conversations, attachments,
     setQuery, sendMessage, clearSearch, showHistory, selectConversation, startNewConversation,
+    addAttachments, removeAttachment,
   } = useSearch()
   const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboard({
     results,
@@ -26,6 +27,16 @@ export function App() {
   const { context } = useSession()
   const [previewVisible, setPreviewVisible] = useState(false)
   const [cmdIndex, setCmdIndex] = useState(0)
+  const [isCompact, setIsCompact] = useState(false)
+
+  useEffect(() => onCompactChange(setIsCompact), [])
+
+  // Auto-expand when AI starts streaming a new response
+  useEffect(() => {
+    if (isCompact && isStreaming) {
+      setExpanded()
+    }
+  }, [isCompact, isStreaming])
 
   const selectedResult = results[selectedIndex] || null
 
@@ -173,56 +184,65 @@ export function App() {
         mode={mode}
         onQueryChange={handleQueryChange}
         onKeyDown={onKeyDown}
+        isCompact={isCompact}
+        onToggleCompact={() => isCompact ? setExpanded() : setCompact()}
+        attachments={attachments}
+        onAddAttachments={addAttachments}
+        onRemoveAttachment={removeAttachment}
       />
 
-      <div className="no-drag" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-          }}
-        >
-          {showEmpty && <EmptyState context={context} onQueryChange={handleQueryChange} onSelectConversation={handleSelectConversation} onShowHistory={showHistory} />}
+      {!isCompact && (
+        <>
+          <div className="no-drag" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                minWidth: 0,
+              }}
+            >
+              {showEmpty && <EmptyState context={context} onQueryChange={handleQueryChange} onSelectConversation={handleSelectConversation} onShowHistory={showHistory} />}
 
-          {showCommands && (
-            <CommandPalette
-              filter={query}
-              selectedIndex={cmdIndex}
-              onSelect={selectCommand}
-            />
-          )}
+              {showCommands && (
+                <CommandPalette
+                  filter={query}
+                  selectedIndex={cmdIndex}
+                  onSelect={selectCommand}
+                />
+              )}
 
-          {showConversations && (
-            <ConversationList
-              conversations={conversations}
-              selectedIndex={convIndex}
-              onSelect={handleSelectConversation}
-            />
-          )}
+              {showConversations && (
+                <ConversationList
+                  conversations={conversations}
+                  selectedIndex={convIndex}
+                  onSelect={handleSelectConversation}
+                />
+              )}
 
-          {showResults && (
-            <ResultsList
-              results={results}
-              selectedIndex={selectedIndex}
-              query={query}
-              onSelectIndex={setSelectedIndex}
-              onExecuteResult={executeResult}
-            />
-          )}
+              {showResults && (
+                <ResultsList
+                  results={results}
+                  selectedIndex={selectedIndex}
+                  query={query}
+                  onSelectIndex={setSelectedIndex}
+                  onExecuteResult={executeResult}
+                />
+              )}
 
-          {showAI && (
-            <AIResponse messages={chatMessages} isStreaming={isStreaming} />
-          )}
-        </div>
+              {showAI && (
+                <AIResponse messages={chatMessages} isStreaming={isStreaming} />
+              )}
+            </div>
 
-        {showResults && (
-          <PreviewPane result={selectedResult} visible={previewVisible} />
-        )}
-      </div>
+            {showResults && (
+              <PreviewPane result={selectedResult} visible={previewVisible} />
+            )}
+          </div>
 
-      <StatusBar mode={mode} resultCount={results.length} />
+          <StatusBar mode={mode} resultCount={results.length} />
+        </>
+      )}
     </div>
   )
 }

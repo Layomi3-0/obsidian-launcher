@@ -11,6 +11,7 @@ const REPO_PROMPTS_DIR = join(app?.getAppPath?.() || join(__dirname, '../..'), '
 export class PromptService {
   constructor() {
     this.ensureUserPrompts()
+    this.ensureMemoryDir()
     this.logResolvedPaths()
   }
 
@@ -30,6 +31,13 @@ export class PromptService {
     // newer than the user's copy (user-edited files are preserved if
     // their mtime is newer than the repo version)
     this.syncSkills()
+  }
+
+  private ensureMemoryDir(): void {
+    if (!existsSync(USER_MEMORY_DIR)) {
+      mkdirSync(USER_MEMORY_DIR, { recursive: true })
+      console.log('[prompts] Created memory directory:', USER_MEMORY_DIR)
+    }
   }
 
   private syncSkills(): void {
