@@ -51,28 +51,83 @@ export interface Attachment {
 
 // ── AI Query ──
 
+const activeRequests = new Map<string, AbortController>()
+const pendingCancels = new Set<string>()
+const cancelTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+export function cancelRequest(requestId: string): void {
+  const controller = activeRequests.get(requestId)
+  if (!controller) {
+    console.log(`[ai:cancel] No active request with id ${requestId}`)
+    return
+  }
+  console.log(`[ai:cancel] Aborting request ${requestId}`)
+  pendingCancels.add(requestId)
+  controller.abort()
+  activeRequests.delete(requestId)
+}
+
+function scheduleCancelSafety(requestId: string, window: import('electron').BrowserWindow | null): void {
+  const timeout = setTimeout(() => {
+    cancelTimeouts.delete(requestId)
+    if (pendingCancels.has(requestId)) {
+      console.warn(`[ai:cancel] Force-finishing stale request ${requestId}`)
+      pendingCancels.delete(requestId)
+      window?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted: true })
+    }
+  }, 3000)
+  cancelTimeouts.set(requestId, timeout)
+}
+
+function clearCancelSafety(requestId: string): void {
+  pendingCancels.delete(requestId)
+  const timeout = cancelTimeouts.get(requestId)
+  if (timeout) {
+    clearTimeout(timeout)
+    cancelTimeouts.delete(requestId)
+  }
+}
+
 export async function handleAIQuery(
+  requestId: string,
   query: string,
   mainWindow: BrowserWindow | null,
   aiService: AIService,
   memoryService: MemoryService,
   attachments: Attachment[] = [],
 ): Promise<void> {
-  console.log('[ai:query] Received:', query.slice(0, 80), `(${attachments.length} attachments)`)
-  const sender = createChunkSender(mainWindow)
+  console.log(`[ai:query] Received (${requestId}):`, query.slice(0, 80), `(${attachments.length} attachments)`)
+  const sender = createChunkSender(mainWindow, requestId)
 
   if (!aiService.isAvailable()) {
     sender.send('AI is not configured. Set API keys in ~/.quick-launcher/config.toml')
-    sender.finish()
+    sender.finish(false)
     return
   }
 
-  ensureConversationExists(memoryService, query)
-  const sessionContext = buildSessionContext(memoryService)
-  const fullResponse = await streamToRenderer(aiService, sender, query, sessionContext, attachments)
+  const controller = new AbortController()
+  activeRequests.set(requestId, controller)
 
-  memoryService.logInteraction(query, null, fullResponse, currentSessionId)
-  console.log('[ai:query] Complete, response length:', fullResponse.length)
+  // If this request gets cancelled, start a safety timer to force-finish if the stream hangs
+  controller.signal.addEventListener('abort', () => {
+    scheduleCancelSafety(requestId, mainWindow)
+  }, { once: true })
+
+  try {
+    ensureConversationExists(memoryService, query)
+    const sessionContext = buildSessionContext(memoryService)
+    const { fullResponse, interrupted } = await streamToRenderer(
+      aiService, sender, query, sessionContext, attachments, controller.signal,
+    )
+
+    if (fullResponse.length > 0) {
+      memoryService.logInteraction(query, null, fullResponse, currentSessionId)
+    }
+    console.log(`[ai:query] Complete (${requestId}), length: ${fullResponse.length}, interrupted: ${interrupted}`)
+  } finally {
+    activeRequests.delete(requestId)
+    clearCancelSafety(requestId)
+  }
 }
 
 function ensureConversationExists(memoryService: MemoryService, query: string): void {
@@ -100,34 +155,51 @@ async function streamToRenderer(
   query: string,
   sessionContext: { recentQueries: string[]; lastNoteOpened: string | null; conversationHistory: ConversationMessage[] },
   attachments: Attachment[] = [],
-): Promise<string> {
+  signal?: AbortSignal,
+): Promise<{ fullResponse: string; interrupted: boolean }> {
   let fullResponse = ''
+  let interrupted = false
 
   try {
-    for await (const chunk of aiService.streamQuery(query, sessionContext, attachments)) {
+    for await (const chunk of aiService.streamQuery(query, sessionContext, attachments, signal)) {
+      if (signal?.aborted) {
+        interrupted = true
+        break
+      }
       fullResponse += chunk
       sender.send(chunk)
     }
   } catch (err) {
-    console.error('[ai:query] Stream error:', err)
-    const errorMsg = `Error: ${err instanceof Error ? err.message : String(err)}`
-    sender.send(errorMsg)
-    fullResponse += errorMsg
+    if (isAbortError(err) || signal?.aborted) {
+      interrupted = true
+      console.log('[ai:query] Stream aborted')
+    } else {
+      console.error('[ai:query] Stream error:', err)
+      const errorMsg = `Error: ${err instanceof Error ? err.message : String(err)}`
+      sender.send(errorMsg)
+      fullResponse += errorMsg
+    }
   }
 
-  sender.finish()
-  return fullResponse
+  sender.finish(interrupted)
+  return { fullResponse, interrupted }
+}
+
+function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: string; message?: string }
+  return e.name === 'AbortError' || e.name === 'APIUserAbortError' || e.message?.toLowerCase().includes('abort') === true
 }
 
 interface ChunkSender {
   send(chunk: string): void
-  finish(): void
+  finish(interrupted: boolean): void
 }
 
-function createChunkSender(window: BrowserWindow | null): ChunkSender {
+function createChunkSender(window: BrowserWindow | null, requestId: string): ChunkSender {
   return {
-    send: (chunk) => window?.webContents.send('ai:chunk', { chunk, done: false }),
-    finish: () => window?.webContents.send('ai:chunk', { chunk: '', done: true }),
+    send: (chunk) => window?.webContents.send('ai:chunk', { requestId, chunk, done: false }),
+    finish: (interrupted) => window?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted }),
   }
 }
 

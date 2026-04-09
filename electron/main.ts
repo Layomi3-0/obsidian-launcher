@@ -1,4 +1,4 @@
-import { app, globalShortcut } from 'electron'
+import { app, globalShortcut, ipcMain } from 'electron'
 import { join } from 'path'
 import { Worker } from 'worker_threads'
 import { existsSync } from 'fs'
@@ -9,7 +9,9 @@ import { PromptService } from './services/prompts'
 import { AIService } from './services/ai'
 import { ContextService } from './services/context'
 import { ObsidianCLI } from './services/obsidian-cli'
+import { generateProjectSummary } from './services/project-summary'
 import { loadConfig } from './config'
+import type { AppConfig } from './config'
 import { createWindow, toggleWindow, getMainWindow } from './window'
 import { registerIpcHandlers } from './ipc-handlers'
 
@@ -24,6 +26,100 @@ let contextService: ContextService
 let obsidianCLI: ObsidianCLI
 let embeddingWorker: Worker | null = null
 
+// ── App Lifecycle ──
+
+app.whenReady().then(() => {
+  app.dock?.hide()
+  const config = loadConfig()
+
+  createCoreServices(config)
+
+  const mainWindow = createWindow()
+  globalShortcut.register('Control+Alt+Space', toggleWindow)
+
+  registerIpcHandlers({
+    mainWindow,
+    getSearchService: () => searchService,
+    getMemoryService: () => memoryService,
+    getAIService: () => aiService,
+    getObsidianCLI: () => obsidianCLI,
+  })
+  registerServiceInitHandler()
+  registerProjectSummaryHandler()
+
+  if (config.onboarded) startVaultServices(config)
+
+  mainWindow.once('ready-to-show', () => mainWindow?.show())
+})
+
+// ── Service Creation ──
+
+function createCoreServices(config: AppConfig): void {
+  memoryService = new MemoryService()
+  searchService = new SearchService()
+  promptService = new PromptService()
+  obsidianCLI = new ObsidianCLI()
+  vaultService = new VaultService(config.vaultPath || '/tmp/empty-vault')
+  aiService = new AIService(promptService, searchService, memoryService, vaultService, obsidianCLI)
+}
+
+function startVaultServices(config: AppConfig): void {
+  if (!config.vaultPath || !existsSync(config.vaultPath)) return
+
+  obsidianCLI.setVaultPath(config.vaultPath)
+  obsidianCLI.checkAvailability()
+
+  vaultService = new VaultService(config.vaultPath)
+  wireVaultEvents()
+
+  vaultService.on('ready', async () => {
+    console.log(`[main] Search index: ${searchService.getDocumentCount()} documents`)
+    contextService = new ContextService(vaultService, memoryService, obsidianCLI)
+    contextService.start()
+    await contextService.ready
+    console.log('[main] CONTEXT.md ready')
+    triggerEmbedding(config.apiKey)
+  })
+
+  vaultService.start()
+  aiService = new AIService(promptService, searchService, memoryService, vaultService, obsidianCLI)
+  startEmbeddingWorker(config.apiKey)
+}
+
+function wireVaultEvents(): void {
+  vaultService.on('note:added', (note) => searchService.addNote(note))
+  vaultService.on('note:changed', (note) => searchService.addNote(note))
+  vaultService.on('note:removed', (path) => searchService.removeNote(path))
+}
+
+// ── IPC: Post-Onboarding Service Init ──
+
+function registerServiceInitHandler(): void {
+  ipcMain.handle('services:init', async () => {
+    try {
+      const config = loadConfig()
+      console.log('[main] Reinitializing services after onboarding...')
+      startVaultServices(config)
+      return { success: true }
+    } catch (err) {
+      console.error('[services:init]', err)
+      return { success: false }
+    }
+  })
+}
+
+function registerProjectSummaryHandler(): void {
+  ipcMain.handle('project:summary', async () => {
+    try {
+      const config = loadConfig()
+      return generateProjectSummary(vaultService, config.projectsFolder)
+    } catch (err) {
+      console.error('[project:summary]', err)
+      return { projects: [], generatedAt: new Date().toISOString() }
+    }
+  })
+}
+
 // ── Embedding Worker ──
 
 function startEmbeddingWorker(apiKey: string): void {
@@ -31,22 +127,19 @@ function startEmbeddingWorker(apiKey: string): void {
 
   try {
     embeddingWorker = new Worker(join(__dirname, 'worker.js'))
-
-    embeddingWorker.on('message', (msg) => {
-      if (msg.type === 'embed:result' && msg.success) {
-        const embedding = new Float32Array(msg.embedding)
-        memoryService.storeEmbedding(msg.notePath, embedding)
-      }
-      if (msg.type === 'embed:batch:complete') {
-        console.log('[worker] Embedding batch complete')
-      }
-    })
-
-    embeddingWorker.on('error', (err) => {
-      console.error('[worker] Error:', err)
-    })
+    embeddingWorker.on('message', handleEmbeddingMessage)
+    embeddingWorker.on('error', (err) => console.error('[worker] Error:', err))
   } catch (err) {
     console.error('[worker] Failed to start:', err)
+  }
+}
+
+function handleEmbeddingMessage(msg: { type: string; success?: boolean; notePath?: string; embedding?: ArrayBuffer }): void {
+  if (msg.type === 'embed:result' && msg.success && msg.notePath && msg.embedding) {
+    memoryService.storeEmbedding(msg.notePath, new Float32Array(msg.embedding))
+  }
+  if (msg.type === 'embed:batch:complete') {
+    console.log('[worker] Embedding batch complete')
   }
 }
 
@@ -55,7 +148,6 @@ function triggerEmbedding(apiKey: string): void {
 
   const notes = vaultService.getAllNotes()
   const embeddedPaths = memoryService.getEmbeddedPaths()
-
   const needsEmbedding = notes
     .filter(n => !embeddedPaths.has(n.path))
     .map(n => ({ path: n.path, content: n.content }))
@@ -63,84 +155,14 @@ function triggerEmbedding(apiKey: string): void {
   if (needsEmbedding.length === 0) return
 
   console.log(`[worker] Embedding ${needsEmbedding.length} notes...`)
-  embeddingWorker.postMessage({
-    type: 'embed:batch',
-    notes: needsEmbedding,
-    apiKey,
-  })
+  embeddingWorker.postMessage({ type: 'embed:batch', notes: needsEmbedding, apiKey })
 }
 
-// ── App Lifecycle ──
-
-app.whenReady().then(() => {
-  app.dock?.hide()
-
-  const config = loadConfig()
-
-  // Initialize services
-  memoryService = new MemoryService()
-  searchService = new SearchService()
-  promptService = new PromptService()
-
-  if (config.vaultPath && existsSync(config.vaultPath)) {
-    vaultService = new VaultService(config.vaultPath)
-
-    // Wire vault events to search index
-    vaultService.on('note:added', (note) => searchService.addNote(note))
-    vaultService.on('note:changed', (note) => searchService.addNote(note))
-    vaultService.on('note:removed', (path) => searchService.removeNote(path))
-
-    vaultService.on('ready', async () => {
-      console.log(`[main] Search index: ${searchService.getDocumentCount()} documents`)
-      // Start context service after vault is ready
-      contextService = new ContextService(vaultService, memoryService, obsidianCLI)
-      contextService.start()
-      await contextService.ready
-      console.log('[main] CONTEXT.md ready')
-      // Trigger initial embedding
-      triggerEmbedding(config.apiKey)
-    })
-
-    vaultService.start()
-  } else {
-    console.warn(`[main] No vault path configured or path doesn't exist: "${config.vaultPath}"`)
-    // Create a stub vault service for the AI service
-    vaultService = new VaultService(config.vaultPath || '/tmp/empty-vault')
-  }
-
-  obsidianCLI = new ObsidianCLI()
-  if (config.vaultPath) obsidianCLI.setVaultPath(config.vaultPath)
-  obsidianCLI.checkAvailability()
-
-  aiService = new AIService(promptService, searchService, memoryService, vaultService, obsidianCLI)
-
-  // Start embedding worker
-  startEmbeddingWorker(config.apiKey)
-
-  // Create window
-  const mainWindow = createWindow()
-  globalShortcut.register('Control+Alt+Space', toggleWindow)
-
-  // Register IPC handlers
-  registerIpcHandlers({
-    mainWindow,
-    searchService,
-    memoryService,
-    aiService,
-    obsidianCLI,
-  })
-
-  // Show window on ready
-  mainWindow.once('ready-to-show', () => {
-    mainWindow?.show()
-  })
-})
+// ── Lifecycle ──
 
 ;(app as any).isQuitting = false
 
-app.on('before-quit', () => {
-  ;(app as any).isQuitting = true
-})
+app.on('before-quit', () => { ;(app as any).isQuitting = true })
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()

@@ -43,7 +43,7 @@ export interface AIConfig {
 export function loadAIConfig(): AIConfig {
   const configPath = join(homedir(), '.quick-launcher', 'config.toml')
   const defaults: AIConfig = {
-    provider: 'gemini',
+    provider: 'claude',
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     geminiModel: 'gemini-2.5-pro',
     geminiModelFast: 'gemini-2.5-flash',
@@ -66,7 +66,7 @@ export function loadAIConfig(): AIConfig {
     const anthropicModelFast = matchConfig(content, 'anthropic_model_fast')
 
     return {
-      provider: (provider === 'claude' ? 'claude' : 'gemini') as AIProvider,
+      provider: (provider === 'gemini' ? 'gemini' : 'claude') as AIProvider,
       geminiApiKey: geminiKey || defaults.geminiApiKey,
       geminiModel: geminiModel || defaults.geminiModel,
       geminiModelFast: geminiModelFast || defaults.geminiModelFast,
@@ -146,6 +146,28 @@ Rules:
 - "isStale" is true if no meaningful activity in the last 14+ days based on the lastModified date.
 - Be SPECIFIC in lastActivity and nextAction — quote actual task text, don't paraphrase vaguely.
 - If there are no unchecked todos, set openTodos to an empty array and suggest a next action based on context.`
+
+// ── Conversational Detection ──
+
+const CONVERSATIONAL_PATTERNS = [
+  /^(hi|hey|hello|sup|yo|howdy)\b/i,
+  /^how are you/i,
+  /^what's up/i,
+  /^good (morning|afternoon|evening)/i,
+  /^thank(s| you)/i,
+  /^(ok|okay|sure|got it|nice|cool|great)\b/i,
+  /^(yes|no|yeah|nah|yep|nope)\b/i,
+  /^what (is|are|was|were|do|does|did|can|could|would|should) /i,
+  /^(explain|tell me about|describe|define) /i,
+  /^who (is|was|are) /i,
+  /^why (is|are|do|does|did|would|should) /i,
+]
+
+export function isConversational(query: string): boolean {
+  if (query.includes('[[') || query.includes('note') || query.includes('vault')) return false
+  if (query.includes('project') || query.includes('todo') || query.includes('task')) return false
+  return CONVERSATIONAL_PATTERNS.some(p => p.test(query))
+}
 
 export const PROJECT_SUMMARY_SCHEMA = {
   type: 'object',

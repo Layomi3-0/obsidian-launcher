@@ -17,8 +17,10 @@ const api = {
 
   getSessionContext: () => ipcRenderer.invoke('session:context'),
 
-  sendAIQuery: (query: string, attachments?: { id: string; name: string; mimeType: string; base64: string; size: number }[]) =>
-    ipcRenderer.send('ai:query', query, attachments ?? []),
+  sendAIQuery: (requestId: string, query: string, attachments?: { id: string; name: string; mimeType: string; base64: string; size: number }[]) =>
+    ipcRenderer.send('ai:query', requestId, query, attachments ?? []),
+
+  cancelAIQuery: (requestId: string) => ipcRenderer.send('ai:cancel', requestId),
 
   captureNote: (content: string, suggestedPath: string) =>
     ipcRenderer.invoke('capture:note', content, suggestedPath),
@@ -30,9 +32,9 @@ const api = {
 
   setAIProvider: (provider: string) => ipcRenderer.invoke('ai:provider:set', provider),
 
-  onStreamChunk: (callback: (chunk: string, done: boolean) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: { chunk: string; done: boolean }) => {
-      callback(data.chunk, data.done)
+  onStreamChunk: (callback: (data: { requestId: string; chunk: string; done: boolean; interrupted?: boolean }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { requestId: string; chunk: string; done: boolean; interrupted?: boolean }) => {
+      callback(data)
     }
     ipcRenderer.on('ai:chunk', handler)
     return () => ipcRenderer.removeListener('ai:chunk', handler)
@@ -57,6 +59,16 @@ const api = {
 
   // Kanban
   getKanbanSummary: () => ipcRenderer.invoke('kanban:summary'),
+
+  // Config / Onboarding
+  getSettings: () => ipcRenderer.invoke('config:get'),
+  saveSettings: (settings: { vaultPath: string; apiKey: string; provider: string; onboarded: boolean; kanbanEnabled: boolean; kanbanPath: string; projectsFolder: string }) =>
+    ipcRenderer.invoke('config:save', settings),
+  pickFolder: () => ipcRenderer.invoke('config:pick-folder'),
+  validateApiKey: (key: string, provider?: string) => ipcRenderer.invoke('config:validate-key', key, provider || 'claude'),
+  initServices: () => ipcRenderer.invoke('services:init'),
+  getProjectSummary: () => ipcRenderer.invoke('project:summary'),
+
   openUrl: (url: string) => ipcRenderer.invoke('open:url', url),
 
   // Conversations

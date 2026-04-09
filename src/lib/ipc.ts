@@ -1,4 +1,4 @@
-import type { SearchResult, SessionContext, Conversation, ChatMessage, Attachment, ObsidianSearchResult, ObsidianTag, KanbanSummary } from './types'
+import type { SearchResult, SessionContext, Conversation, ChatMessage, Attachment, ObsidianSearchResult, ObsidianTag, KanbanSummary, StreamChunkData, AppSettings, ProjectSummaryResult } from './types'
 
 function api() {
   return window.launcher ?? null
@@ -39,8 +39,12 @@ export function getSessionContext(): Promise<SessionContext> {
   })
 }
 
-export function sendAIQuery(query: string, attachments?: Attachment[]): void {
-  api()?.sendAIQuery(query, attachments)
+export function sendAIQuery(requestId: string, query: string, attachments?: Attachment[]): void {
+  api()?.sendAIQuery(requestId, query, attachments)
+}
+
+export function cancelAIQuery(requestId: string): void {
+  api()?.cancelAIQuery(requestId)
 }
 
 export function captureNote(content: string, suggestedPath: string) {
@@ -51,7 +55,7 @@ export function runCommand(command: string, args: string) {
   return api()?.runCommand(command, args) ?? Promise.resolve({ success: false })
 }
 
-export function onStreamChunk(callback: (chunk: string, done: boolean) => void): () => void {
+export function onStreamChunk(callback: (data: StreamChunkData) => void): () => void {
   return api()?.onStreamChunk(callback) ?? (() => {})
 }
 
@@ -79,6 +83,34 @@ export function newConversation(): Promise<string> {
 
 export function deleteConversation(id: string): Promise<void> {
   return api()?.deleteConversation(id) ?? Promise.resolve()
+}
+
+// Config / Onboarding
+
+export function getSettings(): Promise<AppSettings> {
+  return api()?.getSettings() ?? Promise.resolve({
+    vaultPath: '', apiKey: '', provider: 'claude' as const, onboarded: false, kanbanEnabled: false, kanbanPath: '', projectsFolder: 'Projects',
+  })
+}
+
+export function saveSettings(settings: AppSettings): Promise<{ success: boolean }> {
+  return api()?.saveSettings(settings) ?? Promise.resolve({ success: false })
+}
+
+export function pickFolder(): Promise<string | null> {
+  return api()?.pickFolder() ?? Promise.resolve(null)
+}
+
+export function validateApiKey(key: string, provider?: string): Promise<{ valid: boolean; error?: string }> {
+  return api()?.validateApiKey(key, provider) ?? Promise.resolve({ valid: false, error: 'Not available' })
+}
+
+export function initServices(): Promise<{ success: boolean }> {
+  return api()?.initServices() ?? Promise.resolve({ success: false })
+}
+
+export function getProjectSummary(): Promise<ProjectSummaryResult> {
+  return api()?.getProjectSummary() ?? Promise.resolve({ projects: [], generatedAt: '' })
 }
 
 // Kanban

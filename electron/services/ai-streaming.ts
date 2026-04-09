@@ -8,12 +8,21 @@ export interface StreamOptions {
   disableTools?: boolean
   conversationHistory?: { role: string; content: string }[]
   attachments?: Attachment[]
+  signal?: AbortSignal
 }
 
 const MAX_TOOL_TURNS = 15
 
 function formatToolResult(result: { success: boolean; displayMessage: string }): string {
   return `\n\n> ${result.success ? '✓' : '✗'} ${result.displayMessage}\n\n`
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    const err = new Error('Aborted')
+    err.name = 'AbortError'
+    throw err
+  }
 }
 
 // --- Gemini ---
@@ -26,6 +35,9 @@ export async function* streamGemini(
   obsidianCLI: ObsidianCLI | null,
   options?: StreamOptions,
 ): AsyncGenerator<string> {
+  const signal = options?.signal
+  throwIfAborted(signal)
+
   const chat = startGeminiChat(geminiClient, model, systemPrompt, obsidianCLI, options)
   const messageParts = buildGeminiMessageParts(userMessage, options?.attachments ?? [])
   let response = await chat.sendMessageStream(messageParts)
@@ -33,12 +45,15 @@ export async function* streamGemini(
 
   let hitLimit = false
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
-    const functionCalls = yield* consumeGeminiStream(response)
+    throwIfAborted(signal)
+    const functionCalls = yield* consumeGeminiStream(response, signal)
     if (functionCalls.length === 0) break
 
     const toolResults = []
     for (const fc of functionCalls) {
+      throwIfAborted(signal)
       const result = await executeTool(fc.name, fc.args, obsidianCLI!)
+      throwIfAborted(signal)
       yield formatToolResult(result)
       toolResults.push(toGeminiToolResponse(fc.name, result))
     }
@@ -48,6 +63,7 @@ export async function* streamGemini(
       break
     }
 
+    throwIfAborted(signal)
     response = await chat.sendMessageStream(toolResults)
   }
 
@@ -85,10 +101,11 @@ interface GeminiFunctionCall {
   args: Record<string, string>
 }
 
-async function* consumeGeminiStream(response: any): AsyncGenerator<string, GeminiFunctionCall[]> {
+async function* consumeGeminiStream(response: any, signal?: AbortSignal): AsyncGenerator<string, GeminiFunctionCall[]> {
   const functionCalls: GeminiFunctionCall[] = []
 
   for await (const chunk of response.stream) {
+    throwIfAborted(signal)
     const text = chunk.text()
     if (text) yield text
 
@@ -130,6 +147,9 @@ export async function* streamClaude(
   obsidianCLI: ObsidianCLI | null,
   options?: StreamOptions,
 ): AsyncGenerator<string> {
+  const signal = options?.signal
+  throwIfAborted(signal)
+
   const vaultAvailable = obsidianCLI?.isAvailable() ?? false
   const tools = options?.disableTools ? [] : getClaudeTools(vaultAvailable)
   const messages = toClaudeMessages(options?.conversationHistory ?? [], userMessage, options?.attachments ?? [])
@@ -137,16 +157,19 @@ export async function* streamClaude(
 
   let hitLimit = false
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+    throwIfAborted(signal)
     if (turn > 0) ageToolResults(messages)
-    const stream = startClaudeStream(anthropicClient, model, systemPrompt, messages, tools)
-    const { textParts, toolBlocks } = yield* consumeClaudeStream(stream)
+    const stream = startClaudeStream(anthropicClient, model, systemPrompt, messages, tools, signal)
+    const { textParts, toolBlocks } = yield* consumeClaudeStream(stream, signal)
     if (toolBlocks.length === 0) break
 
     messages.push({ role: 'assistant', content: toAssistantContent(textParts, toolBlocks) })
 
     const toolResults: any[] = []
     for (const block of toolBlocks) {
+      throwIfAborted(signal)
       const result = await executeTool(block.name, block.input, obsidianCLI!)
+      throwIfAborted(signal)
       yield formatToolResult(result)
       toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result.message })
     }
@@ -200,10 +223,11 @@ function startClaudeStream(
   systemPrompt: string,
   messages: Anthropic.MessageParam[],
   tools: any[],
+  signal?: AbortSignal,
 ) {
   const config: any = { model, max_tokens: 32768, system: systemPrompt, messages }
   if (tools.length > 0) config.tools = tools
-  return client.messages.stream(config)
+  return client.messages.stream(config, signal ? { signal } : undefined)
 }
 
 interface ClaudeToolBlock {
@@ -217,7 +241,7 @@ interface ClaudeStreamResult {
   toolBlocks: ClaudeToolBlock[]
 }
 
-async function* consumeClaudeStream(stream: any): AsyncGenerator<string, ClaudeStreamResult> {
+async function* consumeClaudeStream(stream: any, signal?: AbortSignal): AsyncGenerator<string, ClaudeStreamResult> {
   const textParts: string[] = []
   const toolBlocks: ClaudeToolBlock[] = []
   let pendingId = ''
@@ -225,6 +249,7 @@ async function* consumeClaudeStream(stream: any): AsyncGenerator<string, ClaudeS
   let pendingInput = ''
 
   for await (const event of stream) {
+    throwIfAborted(signal)
     if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
       yield event.delta.text
       textParts.push(event.delta.text)

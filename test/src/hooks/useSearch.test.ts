@@ -4,6 +4,7 @@ import { useSearch } from '@/hooks/useSearch'
 
 const mockSearch = vi.fn().mockResolvedValue([])
 const mockSendAIQuery = vi.fn()
+const mockCancelAIQuery = vi.fn()
 const mockOnStreamChunk = vi.fn().mockReturnValue(() => {})
 const mockOnWindowHidden = vi.fn().mockReturnValue(() => {})
 const mockGetConversations = vi.fn().mockResolvedValue([])
@@ -13,6 +14,7 @@ const mockNewConversation = vi.fn().mockResolvedValue('new-session')
 vi.mock('@/lib/ipc', () => ({
   search: (...args: unknown[]) => mockSearch(...args),
   sendAIQuery: (...args: unknown[]) => mockSendAIQuery(...args),
+  cancelAIQuery: (...args: unknown[]) => mockCancelAIQuery(...args),
   onStreamChunk: (...args: unknown[]) => mockOnStreamChunk(...args),
   onWindowHidden: (...args: unknown[]) => mockOnWindowHidden(...args),
   getConversations: (...args: unknown[]) => mockGetConversations(...args),
@@ -128,9 +130,9 @@ describe('useSearch', () => {
       })
 
       expect(result.current.chatMessages).toHaveLength(2)
-      expect(result.current.chatMessages[0]).toEqual({ role: 'user', content: 'summarize my notes' })
+      expect(result.current.chatMessages[0]).toEqual({ role: 'user', content: 'summarize my notes', attachments: undefined })
       expect(result.current.chatMessages[1]).toEqual({ role: 'assistant', content: '' })
-      expect(mockSendAIQuery).toHaveBeenCalledWith('>summarize my notes', undefined)
+      expect(mockSendAIQuery).toHaveBeenCalledWith(expect.any(String), '>summarize my notes', undefined)
       expect(result.current.isStreaming).toBe(true)
       expect(result.current.query).toBe('')
     })
@@ -150,7 +152,7 @@ describe('useSearch', () => {
       expect(mockSendAIQuery).not.toHaveBeenCalled()
     })
 
-    it('is a no-op while streaming', async () => {
+    it('queues follow-up messages while streaming instead of blocking', async () => {
       const { result } = renderHook(() => useSearch())
 
       // Send first message
@@ -162,7 +164,7 @@ describe('useSearch', () => {
       })
       expect(result.current.isStreaming).toBe(true)
 
-      // Try to send second message while streaming
+      // Send second message while first is still streaming
       act(() => {
         result.current.setQuery('> second message')
       })
@@ -170,9 +172,98 @@ describe('useSearch', () => {
         result.current.sendMessage()
       })
 
-      // Should still only have the first pair of messages
+      // First message's bubbles remain; second is queued, not yet dispatched
       expect(result.current.chatMessages).toHaveLength(2)
       expect(mockSendAIQuery).toHaveBeenCalledTimes(1)
+      expect(result.current.queuedMessages).toHaveLength(1)
+      expect(result.current.queuedMessages[0].content).toBe('second message')
+    })
+  })
+
+  describe('queue drain and cancel', () => {
+    it('drains the queue when streaming finishes', async () => {
+      let chunkCb: (data: { requestId: string; chunk: string; done: boolean; interrupted?: boolean }) => void = () => {}
+      mockOnStreamChunk.mockImplementation((cb: typeof chunkCb) => {
+        chunkCb = cb
+        return () => {}
+      })
+
+      const { result } = renderHook(() => useSearch())
+
+      act(() => { result.current.setQuery('> first') })
+      await act(async () => { result.current.sendMessage() })
+      const firstReqId = mockSendAIQuery.mock.calls[0][0] as string
+
+      act(() => { result.current.setQuery('> follow-up A') })
+      await act(async () => { result.current.sendMessage() })
+      act(() => { result.current.setQuery('> follow-up B') })
+      await act(async () => { result.current.sendMessage() })
+      expect(result.current.queuedMessages).toHaveLength(2)
+
+      // Simulate stream finishing
+      act(() => {
+        chunkCb({ requestId: firstReqId, chunk: 'hello', done: false })
+      })
+      act(() => {
+        chunkCb({ requestId: firstReqId, chunk: '', done: true })
+      })
+
+      // Queue drained, new request dispatched with joined text
+      expect(result.current.queuedMessages).toHaveLength(0)
+      expect(mockSendAIQuery).toHaveBeenCalledTimes(2)
+      const secondCall = mockSendAIQuery.mock.calls[1]
+      expect(secondCall[1]).toBe('>follow-up A\n\nfollow-up B')
+      expect(result.current.isStreaming).toBe(true)
+    })
+
+    it('cancelInflight sends ai:cancel and finalizes on interrupted chunk', async () => {
+      let chunkCb: (data: { requestId: string; chunk: string; done: boolean; interrupted?: boolean }) => void = () => {}
+      mockOnStreamChunk.mockImplementation((cb: typeof chunkCb) => {
+        chunkCb = cb
+        return () => {}
+      })
+
+      const { result } = renderHook(() => useSearch())
+
+      act(() => { result.current.setQuery('> long task') })
+      await act(async () => { result.current.sendMessage() })
+      const reqId = mockSendAIQuery.mock.calls[0][0] as string
+
+      // Partial chunk then cancel
+      act(() => { chunkCb({ requestId: reqId, chunk: 'partial', done: false }) })
+      act(() => { result.current.cancelInflight() })
+
+      expect(mockCancelAIQuery).toHaveBeenCalledWith(reqId)
+
+      // Main process sends done+interrupted
+      act(() => { chunkCb({ requestId: reqId, chunk: '', done: true, interrupted: true }) })
+
+      expect(result.current.isStreaming).toBe(false)
+      const lastMsg = result.current.chatMessages[result.current.chatMessages.length - 1]
+      expect(lastMsg.role).toBe('assistant')
+      expect(lastMsg.content).toBe('partial')
+      expect(lastMsg.interrupted).toBe(true)
+    })
+
+    it('ignores chunks from a stale requestId', async () => {
+      let chunkCb: (data: { requestId: string; chunk: string; done: boolean; interrupted?: boolean }) => void = () => {}
+      mockOnStreamChunk.mockImplementation((cb: typeof chunkCb) => {
+        chunkCb = cb
+        return () => {}
+      })
+
+      const { result } = renderHook(() => useSearch())
+
+      act(() => { result.current.setQuery('> hi') })
+      await act(async () => { result.current.sendMessage() })
+
+      // Late chunk from a different request — should be dropped
+      act(() => {
+        chunkCb({ requestId: 'stale-id', chunk: 'ghost', done: false })
+      })
+
+      const last = result.current.chatMessages[result.current.chatMessages.length - 1]
+      expect(last.content).toBe('')
     })
   })
 

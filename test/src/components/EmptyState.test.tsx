@@ -5,10 +5,12 @@ import type { SessionContext, KanbanCard, KanbanProject, Conversation } from '@/
 
 const mockGetKanbanSummary = vi.fn()
 const mockGetConversations = vi.fn()
+const mockGetProjectSummary = vi.fn()
 
 vi.mock('@/lib/ipc', () => ({
   getKanbanSummary: (...args: unknown[]) => mockGetKanbanSummary(...args),
   getConversations: (...args: unknown[]) => mockGetConversations(...args),
+  getProjectSummary: (...args: unknown[]) => mockGetProjectSummary(...args),
   openUrl: vi.fn(),
   hideWindow: vi.fn(),
 }))
@@ -51,26 +53,27 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockGetKanbanSummary.mockResolvedValue({ cards: [], projects: [] })
   mockGetConversations.mockResolvedValue([])
+  mockGetProjectSummary.mockResolvedValue({ projects: [], generatedAt: '' })
 })
 
 describe('EmptyState', () => {
   it('renders without crashing when context is null', () => {
-    const { container } = render(<EmptyState context={null} />)
+    const { container } = render(<EmptyState context={null} kanbanEnabled={true} />)
     expect(container.firstChild).toBeTruthy()
   })
 
   it('shows time header with correct time of day', () => {
-    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'morning' }} />)
+    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'morning' }} kanbanEnabled={true} />)
     expect(screen.getByText('MORNING')).toBeInTheDocument()
   })
 
   it('shows afternoon label for afternoon context', () => {
-    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'afternoon' }} />)
+    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'afternoon' }} kanbanEnabled={true} />)
     expect(screen.getByText('AFTERNOON')).toBeInTheDocument()
   })
 
   it('shows evening label for evening context', () => {
-    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'evening' }} />)
+    render(<EmptyState context={{ ...defaultContext, timeOfDay: 'evening' }} kanbanEnabled={true} />)
     expect(screen.getByText('EVENING')).toBeInTheDocument()
   })
 
@@ -78,7 +81,7 @@ describe('EmptyState', () => {
     const cards = [makeCard({ status: 'In Progress' }), makeCard({ id: 'card-2', status: 'Next' })]
     mockGetKanbanSummary.mockResolvedValue({ cards, projects: [] })
 
-    render(<EmptyState context={defaultContext} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} />)
 
     expect(await screen.findByText('Board')).toBeInTheDocument()
     expect(await screen.findByText('2 active')).toBeInTheDocument()
@@ -88,7 +91,7 @@ describe('EmptyState', () => {
     const cards = [makeCard({ status: 'In Progress', priority: 'P0 Today', title: 'Urgent Task' })]
     mockGetKanbanSummary.mockResolvedValue({ cards, projects: [] })
 
-    render(<EmptyState context={defaultContext} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} />)
 
     expect(await screen.findByText('Up Next')).toBeInTheDocument()
     expect(await screen.findByText('Urgent Task')).toBeInTheDocument()
@@ -98,20 +101,20 @@ describe('EmptyState', () => {
     const convos = [makeConversation({ title: 'My Conversation' })]
     mockGetConversations.mockResolvedValue(convos)
 
-    render(<EmptyState context={defaultContext} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} />)
 
     expect(await screen.findByText('Threads')).toBeInTheDocument()
     expect(await screen.findByText('My Conversation')).toBeInTheDocument()
   })
 
   it('shows empty message when no data', () => {
-    render(<EmptyState context={defaultContext} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} />)
 
     expect(screen.getByText('Search your vault, ask a question, or try a command')).toBeInTheDocument()
   })
 
   it('renders quick action strip with buttons', () => {
-    render(<EmptyState context={defaultContext} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} />)
 
     expect(screen.getByText('/briefing')).toBeInTheDocument()
     expect(screen.getByText('/capture')).toBeInTheDocument()
@@ -120,7 +123,7 @@ describe('EmptyState', () => {
 
   it('calls onQueryChange when quick action is clicked', () => {
     const onQueryChange = vi.fn()
-    render(<EmptyState context={defaultContext} onQueryChange={onQueryChange} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} onQueryChange={onQueryChange} />)
 
     fireEvent.click(screen.getByText('/briefing'))
 
@@ -132,7 +135,7 @@ describe('EmptyState', () => {
     const conv = makeConversation({ title: 'Click Me' })
     mockGetConversations.mockResolvedValue([conv])
 
-    render(<EmptyState context={defaultContext} onSelectConversation={onSelectConversation} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} onSelectConversation={onSelectConversation} />)
 
     const threadRow = await screen.findByText('Click Me')
     fireEvent.click(threadRow)
@@ -144,7 +147,7 @@ describe('EmptyState', () => {
     const onShowHistory = vi.fn()
     mockGetConversations.mockResolvedValue([makeConversation()])
 
-    render(<EmptyState context={defaultContext} onShowHistory={onShowHistory} />)
+    render(<EmptyState context={defaultContext} kanbanEnabled={true} onShowHistory={onShowHistory} />)
 
     const allLink = await screen.findByText('all →')
     fireEvent.click(allLink)

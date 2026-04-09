@@ -59,6 +59,50 @@ function ThinkingDots() {
   )
 }
 
+function CancellingIndicator() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '7px',
+      padding: '4px 0',
+      marginTop: '2px',
+      fontSize: '11px',
+      color: 'rgba(248, 180, 100, 0.7)',
+      fontFamily: "'SF Mono', Menlo, monospace",
+    }}>
+      <CancellingDots />
+      cancelling
+    </div>
+  )
+}
+
+function CancellingDots() {
+  return (
+    <span style={{ display: 'inline-flex', gap: '2px', width: '18px' }}>
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          style={{
+            width: '3px',
+            height: '3px',
+            borderRadius: '50%',
+            background: 'rgba(248, 180, 100, 0.8)',
+            animation: 'cancel-dot 1.2s ease-in-out infinite',
+            animationDelay: `${i * 0.2}s`,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes cancel-dot {
+          0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+          40% { opacity: 1; transform: scale(1.2); }
+        }
+      `}</style>
+    </span>
+  )
+}
+
 function AttachmentLabel({ count }: { count: number }) {
   return (
     <span style={{
@@ -115,16 +159,32 @@ function UserBubble({ content, attachments }: { content: string; attachments?: i
   )
 }
 
-function AssistantBubble({ content, isLast, isStreaming }: { content: string; isLast: boolean; isStreaming: boolean }) {
-  const showThinking = isLast && isStreaming && !content
+function AssistantBubble({ content, isLast, isStreaming, interrupted }: { content: string; isLast: boolean; isStreaming: boolean; interrupted?: boolean }) {
+  const showThinking = isLast && isStreaming && !content && !interrupted
+  const isCancelling = isLast && isStreaming && interrupted
+  const showInterruptedLabel = interrupted && !isStreaming
 
   return (
     <div style={{ padding: '4px 20px' }}>
       <div style={{ maxWidth: '95%' }}>
         {showThinking ? (
           <ThinkingDots />
+        ) : isCancelling && !content ? (
+          <CancellingIndicator />
         ) : (
-          <MarkdownContent content={content} isStreaming={isStreaming} isLast={isLast} />
+          <MarkdownContent content={content} isStreaming={isStreaming && !interrupted} isLast={isLast} />
+        )}
+        {isCancelling && content && <CancellingIndicator />}
+        {showInterruptedLabel && (
+          <div style={{
+            marginTop: '4px',
+            fontSize: '11px',
+            fontStyle: 'italic',
+            color: 'rgba(255,255,255,0.35)',
+            fontFamily: "'SF Mono', Menlo, monospace",
+          }}>
+            [interrupted]
+          </div>
         )}
       </div>
     </div>
@@ -203,6 +263,7 @@ export function AIResponse({ messages, isStreaming }: AIResponseProps) {
             content={msg.content}
             isLast={isLast}
             isStreaming={isStreaming}
+            interrupted={msg.interrupted}
           />
         )
       })}

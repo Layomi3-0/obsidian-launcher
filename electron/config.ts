@@ -2,35 +2,118 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 
+export type AIProvider = 'gemini' | 'claude'
+
 export interface AppConfig {
   vaultPath: string
   apiKey: string
+  provider: AIProvider
+  onboarded: boolean
+  kanbanEnabled: boolean
+  kanbanPath: string
+  projectsFolder: string
 }
 
+const CONFIG_DIR = join(homedir(), '.quick-launcher')
+const CONFIG_PATH = join(CONFIG_DIR, 'config.toml')
+
 export function loadConfig(): AppConfig {
-  const configDir = join(homedir(), '.quick-launcher')
-  const configPath = join(configDir, 'config.toml')
+  ensureConfigDir()
 
-  let vaultPath = process.env.VAULT_PATH || ''
-  let apiKey = process.env.GEMINI_API_KEY || ''
+  const envVaultPath = process.env.VAULT_PATH || ''
+  const envApiKey = process.env.GEMINI_API_KEY || ''
 
-  if (existsSync(configPath)) {
-    const content = readFileSync(configPath, 'utf-8')
-    if (!vaultPath) {
-      const match = content.match(/vault_path\s*=\s*"([^"]+)"/)
-      vaultPath = match?.[1] ?? ''
+  if (!existsSync(CONFIG_PATH)) {
+    const config: AppConfig = {
+      vaultPath: envVaultPath,
+      apiKey: envApiKey,
+      provider: 'claude',
+      onboarded: false,
+      kanbanEnabled: false,
+      kanbanPath: '',
+      projectsFolder: 'Projects',
     }
-    if (!apiKey) {
-      const match = content.match(/gemini_api_key\s*=\s*"([^"]+)"/)
-      apiKey = match?.[1] ?? ''
-    }
+    writeDefaultConfig(config)
+    return config
   }
 
-  // Create default config if it doesn't exist
-  if (!existsSync(configPath)) {
-    if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true })
-    writeFileSync(configPath, `[general]\nvault_path = "${vaultPath}"\nhotkey = "Control+Alt+Space"\ntheme = "dark"\n\n[ai]\ngemini_api_key = "${apiKey}"\nmodel = "gemini-3.1-pro"\nmax_tokens = 2048\ntemperature = 0.7\n`, 'utf-8')
+  const content = readFileSync(CONFIG_PATH, 'utf-8')
+  const vaultPath = envVaultPath || matchValue(content, 'vault_path')
+  const geminiKey = envApiKey || matchValue(content, 'gemini_api_key')
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || matchValue(content, 'anthropic_api_key')
+  const providerRaw = matchValue(content, 'provider')
+  const provider: AIProvider = providerRaw === 'gemini' ? 'gemini' : 'claude'
+  const apiKey = provider === 'claude' ? anthropicKey : geminiKey
+  const onboardedRaw = matchValue(content, 'onboarded')
+  const kanbanEnabled = matchValue(content, 'kanban_enabled') === 'true'
+  const kanbanPath = matchValue(content, 'kanban_path') || ''
+
+  // Auto-detect onboarded: if vault and key exist but no onboarded flag, consider onboarded
+  const hasKey = geminiKey !== '' || anthropicKey !== ''
+  const onboarded = onboardedRaw === 'true' || (onboardedRaw === '' && vaultPath !== '' && hasKey)
+
+  const projectsFolder = matchValue(content, 'projects_folder') || 'Projects'
+
+  return { vaultPath, apiKey, provider, onboarded, kanbanEnabled, kanbanPath, projectsFolder }
+}
+
+export function saveConfig(config: AppConfig): void {
+  ensureConfigDir()
+
+  // Preserve existing config content, only update known fields
+  let content = existsSync(CONFIG_PATH) ? readFileSync(CONFIG_PATH, 'utf-8') : ''
+
+  content = upsertValue(content, 'vault_path', config.vaultPath)
+  content = upsertValue(content, 'provider', config.provider)
+  if (config.provider === 'claude') {
+    content = upsertValue(content, 'anthropic_api_key', config.apiKey)
+  } else {
+    content = upsertValue(content, 'gemini_api_key', config.apiKey)
+  }
+  content = upsertValue(content, 'onboarded', String(config.onboarded))
+  content = upsertValue(content, 'kanban_enabled', String(config.kanbanEnabled))
+  content = upsertValue(content, 'kanban_path', config.kanbanPath)
+  content = upsertValue(content, 'projects_folder', config.projectsFolder)
+
+  writeFileSync(CONFIG_PATH, content, 'utf-8')
+}
+
+function ensureConfigDir(): void {
+  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
+}
+
+function matchValue(content: string, key: string): string {
+  const match = content.match(new RegExp(`${key}\\s*=\\s*"([^"]*)"`, 'm'))
+  return match?.[1] ?? ''
+}
+
+function upsertValue(content: string, key: string, value: string): string {
+  const regex = new RegExp(`(${key}\\s*=\\s*)"[^"]*"`, 'm')
+  if (regex.test(content)) {
+    return content.replace(regex, `$1"${value}"`)
   }
 
-  return { vaultPath, apiKey }
+  // Append to [general] section if it exists, otherwise append at end
+  if (content.includes('[general]')) {
+    return content.replace('[general]', `[general]\n${key} = "${value}"`)
+  }
+  return content + `\n${key} = "${value}"\n`
+}
+
+function writeDefaultConfig(config: AppConfig): void {
+  const content = `[general]
+vault_path = "${config.vaultPath}"
+hotkey = "Control+Alt+Space"
+theme = "dark"
+onboarded = "${config.onboarded}"
+kanban_enabled = "${config.kanbanEnabled}"
+kanban_path = "${config.kanbanPath}"
+
+[ai]
+gemini_api_key = "${config.apiKey}"
+model = "gemini-2.5-pro"
+max_tokens = 2048
+temperature = 0.7
+`
+  writeFileSync(CONFIG_PATH, content, 'utf-8')
 }

@@ -5,7 +5,7 @@ import type { SearchService } from './search'
 import type { MemoryService } from './memory'
 import type { VaultService } from './vault'
 import type { ObsidianCLI } from './obsidian-cli'
-import { loadAIConfig, formatNoteChunk, buildUserMessage, CONTEXT_BUDGET } from './ai-helpers'
+import { loadAIConfig, formatNoteChunk, buildUserMessage, CONTEXT_BUDGET, isConversational } from './ai-helpers'
 import type { AIConfig, AIProvider } from './ai-helpers'
 import { streamGemini, streamClaude } from './ai-streaming'
 import { streamBriefing } from './ai-briefing'
@@ -82,7 +82,7 @@ export class AIService {
     return providers
   }
 
-  async *streamQuery(query: string, session: SessionContext, attachments: Attachment[] = []): AsyncGenerator<string> {
+  async *streamQuery(query: string, session: SessionContext, attachments: Attachment[] = [], signal?: AbortSignal): AsyncGenerator<string> {
     if (!this.isAvailable()) {
       yield 'No AI provider configured. Add API keys to ~/.quick-launcher/config.toml'
       return
@@ -97,7 +97,7 @@ export class AIService {
       return
     }
 
-    yield* this.streamWithContext(query, skill, systemPrompt, recentHistory, session, attachments)
+    yield* this.streamWithContext(query, skill, systemPrompt, recentHistory, session, attachments, signal)
   }
 
   async embedText(text: string): Promise<Float32Array | null> {
@@ -115,6 +115,7 @@ export class AIService {
     recentHistory: string,
     session: SessionContext,
     attachments: Attachment[] = [],
+    signal?: AbortSignal,
   ): AsyncGenerator<string> {
     const relevantContext = await this.gatherContext(query, skill)
     const userMessage = buildUserMessage(query, relevantContext, recentHistory, session.lastNoteOpened, CONTEXT_BUDGET.VAULT_CONTEXT * 4)
@@ -122,7 +123,7 @@ export class AIService {
     console.log(`[ai] Context: ${relevantContext.length} chunks, History: ${history.length} msgs, Attachments: ${attachments.length}, Provider: ${this.config.provider}`)
     logPromptDetails(systemPrompt, userMessage)
 
-    yield* this.streamViaProvider(systemPrompt, userMessage, history, attachments)
+    yield* this.streamViaProvider(systemPrompt, userMessage, history, attachments, signal)
   }
 
   private async *streamViaProvider(
@@ -130,11 +131,12 @@ export class AIService {
     userMessage: string,
     history: { role: string; content: string }[],
     attachments: Attachment[] = [],
+    signal?: AbortSignal,
   ): AsyncGenerator<string> {
     if (this.config.provider === 'claude' && this.anthropicClient) {
-      yield* streamClaude(this.anthropicClient, this.config.anthropicModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments })
+      yield* streamClaude(this.anthropicClient, this.config.anthropicModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments, signal })
     } else if (this.geminiClient) {
-      yield* streamGemini(this.geminiClient, this.config.geminiModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments })
+      yield* streamGemini(this.geminiClient, this.config.geminiModel, systemPrompt, userMessage, this.obsidianCLI, { conversationHistory: history, attachments, signal })
     } else {
       yield 'Selected provider is not configured. Check your API keys.'
     }
@@ -151,20 +153,26 @@ export class AIService {
   }
 
   private async gatherContext(query: string, skill?: string | null): Promise<string[]> {
+    const cleanQuery = query.replace(/^[/>]\s*/, '').trim()
+    if (isConversational(cleanQuery)) {
+      console.log('[ai] Skipping vault context for conversational query')
+      return []
+    }
+
     const dedup = new NoteDeduplicator()
 
-    const keywordResults = this.searchService.search(query, 5)
+    const keywordResults = this.searchService.search(cleanQuery, 5)
     for (const result of keywordResults) {
       const note = this.vaultService.getNote(result.path)
       if (note) dedup.add(note.path, note.title, note.content)
     }
 
     const [cliResults, semanticResults] = await Promise.all([
-      this.searchViaCLI(query),
-      this.searchViaEmbeddings(query),
+      this.searchViaCLI(cleanQuery),
+      this.searchViaEmbeddings(cleanQuery),
     ])
 
-    for (const result of cliResults) {
+    for (const result of cliResults.slice(0, 5)) {
       if (dedup.hasSeen(result.path)) continue
       const content = await this.readNoteContent(result.path, result.title)
       if (content) dedup.add(result.path, result.title, content)
@@ -182,7 +190,8 @@ export class AIService {
     if (!this.obsidianCLI?.isAvailable()) return []
 
     try {
-      return await this.obsidianCLI.search(query.replace(/^[/>]\s*/, '').trim())
+      const results = await this.obsidianCLI.search(query)
+      return results.slice(0, 10)
     } catch (err) {
       console.error('[ai] CLI search failed:', err)
       return []

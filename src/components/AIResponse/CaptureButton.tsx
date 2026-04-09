@@ -13,7 +13,7 @@ export function CaptureButton({ messages }: { messages: ChatMessage[] }) {
       .map(m => m.role === 'user' ? `**You:** ${m.content}` : `**Launcher:** ${m.content}`)
       .join('\n\n')
 
-    const content = `---\ncaptured: ${new Date().toISOString()}\nsource: quick-launcher\ntype: chat\n---\n\n${chatContent}`
+    const content = `---\ncaptured: ${new Date().toISOString()}\nsource: brain-dump\ntype: chat\n---\n\n${chatContent}`
 
     const result = await window.launcher?.captureNote(content, suggestedPath)
     if (result?.success && result.path) {

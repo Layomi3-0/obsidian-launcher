@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { App } from '@/App'
 
@@ -24,7 +24,21 @@ vi.mock('@/lib/ipc', () => ({
     timeOfDay: 'morning',
     isFirstInvocationToday: false,
   }),
+  getSettings: vi.fn().mockResolvedValue({
+    vaultPath: '/test/vault',
+    apiKey: 'test-key',
+    provider: 'claude',
+    onboarded: true,
+    kanbanEnabled: false,
+    kanbanPath: '',
+    projectsFolder: 'Projects',
+  }),
+  saveSettings: vi.fn().mockResolvedValue({ success: true }),
+  pickFolder: vi.fn().mockResolvedValue(null),
+  validateApiKey: vi.fn().mockResolvedValue({ valid: true }),
+  initServices: vi.fn().mockResolvedValue({ success: true }),
   getKanbanSummary: vi.fn().mockResolvedValue({ cards: [], projects: [] }),
+  getProjectSummary: vi.fn().mockResolvedValue({ projects: [], generatedAt: '' }),
   openUrl: vi.fn(),
 }))
 
@@ -53,17 +67,19 @@ beforeEach(() => {
 })
 
 describe('App', () => {
-  it('content container has no-drag class for scrolling', () => {
+  it('content container has no-drag class for scrolling', async () => {
     const { container } = render(<App />)
 
-    const launcherWindow = container.querySelector('.launcher-window')
-    expect(launcherWindow).toBeTruthy()
+    await waitFor(() => {
+      const launcherWindow = container.querySelector('.launcher-window')
+      expect(launcherWindow).toBeTruthy()
 
-    const noDragContent = launcherWindow!.querySelector('.no-drag')
-    expect(noDragContent).toBeTruthy()
+      const noDragContent = launcherWindow!.querySelector('.no-drag')
+      expect(noDragContent).toBeTruthy()
 
-    const style = noDragContent!.getAttribute('style')
-    expect(style).toContain('flex: 1')
-    expect(style).toContain('display: flex')
+      const style = noDragContent!.getAttribute('style')
+      expect(style).toContain('flex: 1')
+      expect(style).toContain('display: flex')
+    })
   })
 })

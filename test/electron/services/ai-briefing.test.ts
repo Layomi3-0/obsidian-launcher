@@ -9,7 +9,7 @@ vi.mock('child_process', () => ({
   execSync: vi.fn(),
 }))
 
-import { buildMapMessage, buildReduceMessage } from '../../../electron/services/ai-briefing'
+import { buildMapMessage, buildReduceMessage, stripCodeFences } from '../../../electron/services/ai-briefing'
 import type { ProjectManifestEntry, ProjectSummary } from '../../../electron/services/ai-briefing'
 
 function makeEntry(overrides: Partial<ProjectManifestEntry> = {}): ProjectManifestEntry {
@@ -147,5 +147,35 @@ describe('buildReduceMessage', () => {
 
     expect(result).toContain('### 1. [[Alpha]]')
     expect(result).toContain('### 2. [[Beta]]')
+  })
+})
+
+describe('stripCodeFences', () => {
+  it('removes ```json fences wrapping valid JSON', () => {
+    const input = '```json\n{"status": "Active"}\n```'
+    expect(stripCodeFences(input)).toBe('{"status": "Active"}')
+  })
+
+  it('removes plain ``` fences without language tag', () => {
+    const input = '```\n{"status": "Active"}\n```'
+    expect(stripCodeFences(input)).toBe('{"status": "Active"}')
+  })
+
+  it('returns plain JSON unchanged', () => {
+    const input = '{"status": "Active"}'
+    expect(stripCodeFences(input)).toBe('{"status": "Active"}')
+  })
+
+  it('handles fences with extra whitespace', () => {
+    const input = '```json  \n{"status": "Active"}\n```  '
+    expect(stripCodeFences(input)).toBe('{"status": "Active"}')
+  })
+
+  it('produces parseable JSON from fenced input', () => {
+    const input = '```json\n{"status":"Active","blockers":[],"isStale":false}\n```'
+    const result = stripCodeFences(input)
+    const parsed = JSON.parse(result)
+    expect(parsed.status).toBe('Active')
+    expect(parsed.blockers).toEqual([])
   })
 })

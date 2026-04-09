@@ -161,11 +161,16 @@ function parseCompletedItems(content: string): string[] {
 async function extractProjectSummary(deps: BriefingDeps, entry: ProjectManifestEntry): Promise<ProjectSummary> {
   try {
     const raw = await callFastModel(deps, MAP_SYSTEM_PROMPT, buildMapMessage(entry))
-    return parseSummaryResponse(entry, JSON.parse(raw))
+    const json = stripCodeFences(raw)
+    return parseSummaryResponse(entry, JSON.parse(json))
   } catch (err) {
     console.error(`[ai] Extraction failed for ${entry.title}:`, err)
     return buildFallbackSummary(entry)
   }
+}
+
+export function stripCodeFences(text: string): string {
+  return text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
 }
 
 function parseSummaryResponse(entry: ProjectManifestEntry, parsed: Record<string, unknown>): ProjectSummary {

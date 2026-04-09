@@ -39,7 +39,7 @@ describe('loadAIConfig', () => {
 
     const config = loadAIConfig()
 
-    expect(config.provider).toBe('gemini')
+    expect(config.provider).toBe('claude')
     expect(config.geminiModel).toBe('gemini-2.5-pro')
     expect(config.geminiModelFast).toBe('gemini-2.5-flash')
     expect(config.anthropicModel).toBe('claude-opus-4-6')
@@ -94,17 +94,17 @@ describe('loadAIConfig', () => {
 
     const config = loadAIConfig()
 
-    expect(config.provider).toBe('gemini')
+    expect(config.provider).toBe('claude')
     expect(config.geminiModel).toBe('gemini-2.5-pro')
   })
 
-  it('defaults provider to gemini for unrecognized values', () => {
+  it('defaults provider to claude for unrecognized values', () => {
     mockExistsSync.mockReturnValue(true as any)
     mockReadFileSync.mockReturnValue('provider = "openai"\n' as any)
 
     const config = loadAIConfig()
 
-    expect(config.provider).toBe('gemini')
+    expect(config.provider).toBe('claude')
   })
 })
 
