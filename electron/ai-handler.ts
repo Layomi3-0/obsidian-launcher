@@ -212,20 +212,17 @@ function budgetHistory(messages: { role: string; content: string }[], tokenBudge
   const totalTokens = typed.reduce((sum, m) => sum + estimateTokens(m.content), 0)
   if (totalTokens <= tokenBudget) return typed
 
-  // Always keep last 3 exchanges verbatim
-  const recentCount = Math.min(6, typed.length)
-  const recent = typed.slice(-recentCount)
-  let usedTokens = recent.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+  // Keep recent messages first, then fill with older ones — all within budget
+  const result: ConversationMessage[] = []
+  let usedTokens = 0
 
-  // Fill remaining budget with older messages, newest-first
-  const older = typed.slice(0, -recentCount)
-  const kept: ConversationMessage[] = []
-  for (let i = older.length - 1; i >= 0; i--) {
-    const msgTokens = estimateTokens(older[i].content)
+  // Add messages from newest to oldest, respecting budget
+  for (let i = typed.length - 1; i >= 0; i--) {
+    const msgTokens = estimateTokens(typed[i].content)
     if (usedTokens + msgTokens > tokenBudget) break
-    kept.unshift(older[i])
+    result.unshift(typed[i])
     usedTokens += msgTokens
   }
 
-  return [...kept, ...recent]
+  return result
 }

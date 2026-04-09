@@ -136,7 +136,7 @@ describe('loadConfig', () => {
     expect(writtenContent).toContain('my-key')
   })
 
-  it('defaults provider to claude when not specified', () => {
+  it('defaults provider to claude when no provider and no gemini key', () => {
     mockExistsSync.mockReturnValue(true as any)
     mockReadFileSync.mockReturnValue('vault_path = "/vault"' as any)
 
@@ -145,7 +145,19 @@ describe('loadConfig', () => {
     expect(config.provider).toBe('claude')
   })
 
-  it('reads provider from config file', () => {
+  it('infers gemini provider when no provider field but gemini key exists', () => {
+    mockExistsSync.mockReturnValue(true as any)
+    mockReadFileSync.mockReturnValue(
+      'vault_path = "/vault"\ngemini_api_key = "gkey"' as any
+    )
+
+    const config = loadConfig()
+
+    expect(config.provider).toBe('gemini')
+    expect(config.apiKey).toBe('gkey')
+  })
+
+  it('reads explicit provider from config file', () => {
     mockExistsSync.mockReturnValue(true as any)
     mockReadFileSync.mockReturnValue(
       'vault_path = "/vault"\nprovider = "gemini"\ngemini_api_key = "gkey"' as any

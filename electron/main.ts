@@ -9,7 +9,7 @@ import { PromptService } from './services/prompts'
 import { AIService } from './services/ai'
 import { ContextService } from './services/context'
 import { ObsidianCLI } from './services/obsidian-cli'
-import { generateProjectSummary } from './services/project-summary'
+import { generateProjectSummary, invalidateProjectSummaryCache } from './services/project-summary'
 import { loadConfig } from './config'
 import type { AppConfig } from './config'
 import { createWindow, toggleWindow, getMainWindow } from './window'
@@ -87,9 +87,9 @@ function startVaultServices(config: AppConfig): void {
 }
 
 function wireVaultEvents(): void {
-  vaultService.on('note:added', (note) => searchService.addNote(note))
-  vaultService.on('note:changed', (note) => searchService.addNote(note))
-  vaultService.on('note:removed', (path) => searchService.removeNote(path))
+  vaultService.on('note:added', (note) => { searchService.addNote(note); invalidateProjectSummaryCache() })
+  vaultService.on('note:changed', (note) => { searchService.addNote(note); invalidateProjectSummaryCache() })
+  vaultService.on('note:removed', (path) => { searchService.removeNote(path); invalidateProjectSummaryCache() })
 }
 
 // ── IPC: Post-Onboarding Service Init ──

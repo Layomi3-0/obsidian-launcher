@@ -42,7 +42,7 @@ export function loadConfig(): AppConfig {
   const geminiKey = envApiKey || matchValue(content, 'gemini_api_key')
   const anthropicKey = process.env.ANTHROPIC_API_KEY || matchValue(content, 'anthropic_api_key')
   const providerRaw = matchValue(content, 'provider')
-  const provider: AIProvider = providerRaw === 'gemini' ? 'gemini' : 'claude'
+  const provider: AIProvider = detectProvider(providerRaw, geminiKey, anthropicKey)
   const apiKey = provider === 'claude' ? anthropicKey : geminiKey
   const onboardedRaw = matchValue(content, 'onboarded')
   const kanbanEnabled = matchValue(content, 'kanban_enabled') === 'true'
@@ -76,6 +76,14 @@ export function saveConfig(config: AppConfig): void {
   content = upsertValue(content, 'projects_folder', config.projectsFolder)
 
   writeFileSync(CONFIG_PATH, content, 'utf-8')
+}
+
+function detectProvider(providerRaw: string, geminiKey: string, anthropicKey: string): AIProvider {
+  if (providerRaw === 'gemini') return 'gemini'
+  if (providerRaw === 'claude') return 'claude'
+  // No explicit provider set — infer from which key exists
+  if (geminiKey && !anthropicKey) return 'gemini'
+  return 'claude'
 }
 
 function ensureConfigDir(): void {
