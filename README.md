@@ -4,6 +4,7 @@ A system-wide macOS launcher that connects to your Obsidian vault. Search notes,
 
 Built with Electron, React 19, TypeScript, and Tailwind CSS.
 
+Video demo: https://drive.google.com/file/d/1uYm33ufbT0GIdz-CWpsEKJXGI-8ibPTj/view?usp=drive_link
 ## Features
 
 - **Instant search** — fuzzy + full-text search across your entire vault on every keystroke
@@ -159,4 +160,4 @@ gemini_api_key = ""
 
 ## License
 
-Private — not yet licensed for distribution.
+Open source feel free to modify
