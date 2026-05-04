@@ -1,5 +1,5 @@
-const TOKEN_KEY = 'quickLauncher.token'
-const ENDPOINT_KEY = 'quickLauncher.endpoint'
+const TOKEN_KEY = 'brainDump.token'
+const ENDPOINT_KEY = 'brainDump.endpoint'
 
 const DEFAULT_ENDPOINT = 'ws://127.0.0.1:51789'
 

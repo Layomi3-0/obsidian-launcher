@@ -3,8 +3,8 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { app } from 'electron'
 
-const USER_PROMPTS_DIR = join(homedir(), '.quick-launcher', 'prompts')
-const USER_MEMORY_DIR = join(homedir(), '.quick-launcher', 'memory')
+const USER_PROMPTS_DIR = join(homedir(), '.brain-dump', 'prompts')
+const USER_MEMORY_DIR = join(homedir(), '.brain-dump', 'memory')
 // In dev, app.getAppPath() is the project root. In prod, it's the asar.
 const REPO_PROMPTS_DIR = join(app?.getAppPath?.() || join(__dirname, '../..'), 'prompts')
 

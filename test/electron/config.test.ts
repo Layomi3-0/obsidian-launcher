@@ -110,7 +110,7 @@ describe('loadConfig', () => {
     loadConfig()
 
     expect(mockMkdirSync).toHaveBeenCalledWith(
-      expect.stringContaining('.quick-launcher'),
+      expect.stringContaining('.brain-dump'),
       { recursive: true },
     )
   })

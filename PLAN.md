@@ -1,6 +1,6 @@
-# Quick Launcher — Build Plan
+# Brain Dump — Build Plan
 
-> This document is the single source of truth for building Quick Launcher.
+> This document is the single source of truth for building Brain Dump.
 > Any LLM or developer should be able to follow this plan end-to-end.
 
 ## What Is This?
@@ -37,7 +37,7 @@ Read `docs/PRD.md` for the full product vision. This file is the step-by-step bu
 ## Project Structure
 
 ```
-quick-launcher/
+brain-dump/
   +-- electron/
   |   +-- main.ts              # Electron main process: window, shortcuts, tray, IPC handlers
   |   +-- preload.ts           # contextBridge exposing API to renderer
@@ -70,7 +70,7 @@ quick-launcher/
   |   +-- index.html
   |   +-- main.tsx             # React entry point
   |   +-- styles.css           # Tailwind entry + custom styles (vibrancy, animations)
-  +-- prompts/                 # Default prompt files (copied to ~/.quick-launcher/prompts/ on first run)
+  +-- prompts/                 # Default prompt files (copied to ~/.brain-dump/prompts/ on first run)
   |   +-- CORE.md
   |   +-- SOUL.md
   |   +-- skills/
@@ -172,7 +172,7 @@ Steps:
 
 Steps:
 1. Create `electron/services/memory.ts`:
-   - Initialize `better-sqlite3` database at `~/.quick-launcher/launcher.db`
+   - Initialize `better-sqlite3` database at `~/.brain-dump/launcher.db`
    - Create tables:
      ```sql
      CREATE TABLE interactions (
@@ -242,7 +242,7 @@ Steps:
 Steps:
 1. Install: `npm i @google/generative-ai`
 2. Create `electron/services/prompts.ts`:
-   - On startup, check if `~/.quick-launcher/prompts/` exists. If not, copy defaults from repo's `prompts/` directory.
+   - On startup, check if `~/.brain-dump/prompts/` exists. If not, copy defaults from repo's `prompts/` directory.
    - `loadPrompt(name: string): string` — read a prompt file from the user's prompts directory
    - `assembleSystemPrompt(skillName?: string): string` — compose CORE + SOUL + CONTEXT + optional skill
    - `loadSkill(query: string): string | null` — pattern match query to determine which skill to inject:
@@ -270,7 +270,7 @@ Steps:
      5. For each note, extract the most relevant chunk (~500 tokens)
      6. Return chunks as context strings
 5. Create `electron/services/context.ts`:
-   - Auto-generate `CONTEXT.md` at `~/.quick-launcher/prompts/CONTEXT.md`
+   - Auto-generate `CONTEXT.md` at `~/.brain-dump/prompts/CONTEXT.md`
    - Rebuild on: app start, vault change (debounced 30s), and daily at midnight
    - Contents: vault structure summary, active projects (recently modified), open loops (unchecked tasks), recent interaction summary
 6. Update `src/hooks/useSearch.ts`:
@@ -334,17 +334,17 @@ Steps:
    - Create a one-time setup command (CLI or first-run flow)
    - Reads vault structure + 10-15 sample notes
    - Sends to Gemini with the soul calibration prompt (see `prompts/` README)
-   - Saves output to `~/.quick-launcher/memory/PROFILE.md`
+   - Saves output to `~/.brain-dump/memory/PROFILE.md`
 3. Implement `/feedback` command:
    - User types `/feedback this was too verbose`
-   - Append feedback to `~/.quick-launcher/memory/PREFERENCES.md`
+   - Append feedback to `~/.brain-dump/memory/PREFERENCES.md`
    - PREFERENCES.md is loaded into context on every AI call
 4. Implement `/forget` command:
    - `/forget last query` — delete the most recent interaction
    - `/forget topic X` — delete all interactions mentioning X
 5. Add latency instrumentation:
    - Time every phase: hotkey->visible, keystroke->results, query->first-token
-   - Log to `~/.quick-launcher/logs/launcher.log`
+   - Log to `~/.brain-dump/logs/launcher.log`
    - Show in StatusBar during dev mode
 6. Visual polish:
    - Window: translucent dark background, 12px border radius, blur effect
@@ -353,7 +353,7 @@ Steps:
    - Pulsing dot (not spinner) for AI thinking state
    - Smooth transitions between search results and AI response
 7. Implement daily memory log:
-   - At end of each session, write a summary to `~/.quick-launcher/memory/daily/YYYY-MM-DD.md`
+   - At end of each session, write a summary to `~/.brain-dump/memory/daily/YYYY-MM-DD.md`
    - Format: queries asked, notes opened, AI insights generated
    - Used for "what was I looking at last Tuesday?" type queries
 
@@ -458,7 +458,7 @@ interface WorkingMemory {
 | `VAULT_PATH` | Yes | Absolute path to Obsidian vault |
 | `LAUNCHER_DEV` | No | Set to `1` to show latency instrumentation in UI |
 
-These can also be set in `~/.quick-launcher/config.toml`:
+These can also be set in `~/.brain-dump/config.toml`:
 ```toml
 [general]
 vault_path = "/path/to/your/vault"

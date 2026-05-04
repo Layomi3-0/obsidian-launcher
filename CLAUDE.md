@@ -1,4 +1,4 @@
-# CLAUDE.md — Quick Launcher
+# CLAUDE.md — Brain Dump
 
 ## What Is This?
 
@@ -9,7 +9,7 @@ An AI-powered system-wide launcher for macOS built with Electron. It replaces Sp
 1. Read `PLAN.md` — it has the full build plan with phases, types, IPC channels, and acceptance criteria.
 2. Read `docs/PRD.md` — it has the product vision and architectural decisions.
 3. Read `docs/harness/README.md` — it has the Clean Code harness. All code must pass through these guardrails.
-4. The `prompts/` directory contains default prompt files that get copied to `~/.quick-launcher/prompts/` on first run. These define the AI's personality and behavior.
+4. The `prompts/` directory contains default prompt files that get copied to `~/.brain-dump/prompts/` on first run. These define the AI's personality and behavior.
 
 ## Architecture
 
@@ -24,8 +24,8 @@ An AI-powered system-wide launcher for macOS built with Electron. It replaces Sp
 2. **Window hide/show, never destroy/recreate.** Keep the renderer alive for instant appearance.
 3. **All search in renderer process** where possible (MiniSearch). Avoid IPC round-trips for Tier 0 search.
 4. **Stream all AI responses.** Never wait for complete response.
-5. **Composable prompts.** Never hardcode system prompts. Always load from `~/.quick-launcher/prompts/` files.
-6. **SQLite for everything persistent.** One database at `~/.quick-launcher/launcher.db` for interactions, note access, embeddings, working memory.
+5. **Composable prompts.** Never hardcode system prompts. Always load from `~/.brain-dump/prompts/` files.
+6. **SQLite for everything persistent.** One database at `~/.brain-dump/launcher.db` for interactions, note access, embeddings, working memory.
 7. **Selective skill injection.** Don't stuff all skills into every prompt — detect which skill is relevant and inject only that one.
 
 ## Build Commands
@@ -49,7 +49,7 @@ See `PLAN.md` for the full tech stack. Key ones:
 
 ## Prompt Files
 
-The `prompts/` directory contains the default AI personality. On first run, these are copied to `~/.quick-launcher/prompts/`. The user can edit them to tune the personality.
+The `prompts/` directory contains the default AI personality. On first run, these are copied to `~/.brain-dump/prompts/`. The user can edit them to tune the personality.
 
 - `CORE.md` — Non-negotiable rules (always loaded)
 - `SOUL.md` — Personality and voice (always loaded, user-editable)
@@ -58,7 +58,7 @@ The `prompts/` directory contains the default AI personality. On first run, thes
 
 ## Environment
 
-Requires `GEMINI_API_KEY` and `VAULT_PATH` either as env vars or in `~/.quick-launcher/config.toml`.
+Requires `GEMINI_API_KEY` and `VAULT_PATH` either as env vars or in `~/.brain-dump/config.toml`.
 
 ## Clean Code Harness
 

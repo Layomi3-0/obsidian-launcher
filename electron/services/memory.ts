@@ -8,7 +8,7 @@ import { cosineSimilarity, SCHEMA_SQL } from './memory-types'
 
 export type { Conversation, ChatMessage }
 
-const DATA_DIR = join(homedir(), '.quick-launcher')
+const DATA_DIR = join(homedir(), '.brain-dump')
 const DB_PATH = join(DATA_DIR, 'launcher.db')
 
 export class MemoryService {

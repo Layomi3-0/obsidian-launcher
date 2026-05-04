@@ -14,7 +14,7 @@ export interface AppConfig {
   projectsFolder: string
 }
 
-const CONFIG_DIR = join(homedir(), '.quick-launcher')
+const CONFIG_DIR = join(homedir(), '.brain-dump')
 const CONFIG_PATH = join(CONFIG_DIR, 'config.toml')
 
 export function loadConfig(): AppConfig {

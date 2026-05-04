@@ -3,7 +3,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { randomBytes } from 'crypto'
 
-const TOKEN_DIR = join(homedir(), '.quick-launcher')
+const TOKEN_DIR = join(homedir(), '.brain-dump')
 const TOKEN_PATH = join(TOKEN_DIR, 'extension-token')
 
 export function loadOrCreateToken(): string {

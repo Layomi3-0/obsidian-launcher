@@ -1,4 +1,4 @@
-# Quick Launcher — PRD & Design Doc
+# Brain Dump — PRD & Design Doc
 
 > Evolving from "launcher with AI" to "second brain with a soul"
 
@@ -6,7 +6,7 @@
 
 ## Where We Are
 
-Quick Launcher is an Electron app on a Google corp laptop that:
+Brain Dump is an Electron app on a Google corp laptop that:
 - Replaces Spotlight as a system-wide launcher
 - Registers global shortcuts
 - Connects to an Obsidian vault via Gemini
@@ -22,7 +22,7 @@ The thesis: **a tool earns the right to be your second brain by having memory, c
 
 ## Objective
 
-Transform Quick Launcher from a functional launcher into a tool that feels like an extension of your mind. Three pillars:
+Transform Brain Dump from a functional launcher into a tool that feels like an extension of your mind. Three pillars:
 
 | Pillar | What it means | How you'd feel it |
 |--------|--------------|-------------------|
@@ -204,7 +204,7 @@ The tool should subtly match the domain:
 
 ### Composable Prompt System
 
-Instead of one hardcoded system prompt, load personality from user-editable files in `~/.quick-launcher/prompts/`. See the `prompts/` directory in this repo for defaults.
+Instead of one hardcoded system prompt, load personality from user-editable files in `~/.brain-dump/prompts/`. See the `prompts/` directory in this repo for defaults.
 
 The system prompt for each AI call is assembled at runtime:
 ```
@@ -315,7 +315,7 @@ Detect query type locally, inject only the relevant skill file:
 ## Data Storage
 
 ```
-~/.quick-launcher/
+~/.brain-dump/
   +-- config.toml          # User settings
   +-- launcher.db          # SQLite: clipboard, action history, metadata, embeddings
   +-- prompts/             # Composable prompt files (copied from repo defaults on first run)

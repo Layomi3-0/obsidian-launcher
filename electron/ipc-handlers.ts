@@ -169,7 +169,7 @@ function registerCommandHandlers(getMemoryService: () => MemoryService): void {
 }
 
 function saveFeedback(feedback: string) {
-  const dir = join(homedir(), '.quick-launcher', 'memory')
+  const dir = join(homedir(), '.brain-dump', 'memory')
   const prefsPath = join(dir, 'PREFERENCES.md')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 

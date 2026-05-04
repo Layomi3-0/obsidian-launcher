@@ -5,7 +5,7 @@ import type { VaultService } from './vault'
 import type { MemoryService } from './memory'
 import type { ObsidianCLI } from './obsidian-cli'
 
-const CONTEXT_PATH = join(homedir(), '.quick-launcher', 'prompts', 'CONTEXT.md')
+const CONTEXT_PATH = join(homedir(), '.brain-dump', 'prompts', 'CONTEXT.md')
 
 export class ContextService {
   private vaultService: VaultService

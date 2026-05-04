@@ -1,7 +1,7 @@
 {
-  "name": "quick-launcher-extension",
+  "name": "brain-dump-extension",
   "version": "0.1.0",
-  "description": "Quick Launcher Chrome side panel — talks to the Electron app over a localhost WebSocket",
+  "description": "Brain Dump Chrome side panel — talks to the Electron app over a localhost WebSocket",
   "type": "module",
   "private": true,
   "scripts": {

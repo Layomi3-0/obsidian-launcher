@@ -36,7 +36,7 @@ On first launch, an onboarding flow will guide you through:
 2. Choosing your AI provider (Claude or Gemini)
 3. Entering your API key
 
-Or configure manually in `~/.quick-launcher/config.toml`:
+Or configure manually in `~/.brain-dump/config.toml`:
 
 ```toml
 [general]
@@ -72,7 +72,7 @@ npm run typecheck    # TypeScript type checking
 ```
 electron/               # Main process
   main.ts               # App lifecycle, service init
-  config.ts             # Config loading/saving (~/.quick-launcher/config.toml)
+  config.ts             # Config loading/saving (~/.brain-dump/config.toml)
   ai-handler.ts         # AI query dispatch, streaming, cancel safety
   ipc-handlers.ts       # IPC channel registration
   ipc-config.ts         # Config/onboarding IPC handlers
@@ -107,7 +107,7 @@ src/                    # Renderer (React)
     PreviewPane.tsx
     StatusBar.tsx
 
-prompts/                # Default AI personality (copied to ~/.quick-launcher/prompts/)
+prompts/                # Default AI personality (copied to ~/.brain-dump/prompts/)
   CORE.md               # Non-negotiable rules
   SOUL.md               # Voice and personality (user-editable)
   skills/*.md           # Task-specific playbooks
@@ -117,7 +117,7 @@ test/                   # Vitest tests mirroring src/ and electron/ structure
 
 ## Configuration
 
-All config lives in `~/.quick-launcher/`:
+All config lives in `~/.brain-dump/`:
 
 | File | Purpose |
 |------|---------|

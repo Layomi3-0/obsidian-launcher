@@ -6,7 +6,7 @@ import type { ObsidianCLI } from "./obsidian-cli";
 import { TOOL_DEFS, type ToolDef } from "./ai-tools-defs";
 import { executeKanbanTool } from "./ai-tools-kanban";
 
-const PREFERENCES_DIR = join(homedir(), ".quick-launcher", "memory");
+const PREFERENCES_DIR = join(homedir(), ".brain-dump", "memory");
 const PREFERENCES_JSON = join(PREFERENCES_DIR, "preferences.json");
 const PREFERENCES_MD = join(PREFERENCES_DIR, "PREFERENCES.md");
 
@@ -283,7 +283,7 @@ async function fetchRedditJson(url: string): Promise<string | null> {
     const response = await fetch(jsonUrl, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "QuickLauncher/1.0",
+        "User-Agent": "BrainDump/1.0",
         "Accept": "application/json",
       },
     });
@@ -404,7 +404,7 @@ function extractReadableText(html: string): string {
     .join("\n");
 }
 
-const PROMPTS_DIR = join(homedir(), ".quick-launcher", "prompts");
+const PROMPTS_DIR = join(homedir(), ".brain-dump", "prompts");
 
 function readPromptFile(filename: string): string | null {
   try {

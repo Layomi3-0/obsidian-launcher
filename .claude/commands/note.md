@@ -12,7 +12,7 @@ Based on `$ARGUMENTS`:
 
 1. If a file path is provided, use it directly (relative to the vault root)
 2. If only a topic is provided, search the vault for a relevant existing note
-3. The vault path is configured via `VAULT_PATH` env var or `~/.quick-launcher/config.toml`
+3. The vault path is configured via `VAULT_PATH` env var or `~/.brain-dump/config.toml`
 
 ### Step 2: Read Current Notes
 

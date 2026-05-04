@@ -6,7 +6,7 @@ import type { AIService } from './services/ai'
 import type { MemoryService } from './services/memory'
 import { estimateTokens, CONTEXT_BUDGET } from './services/ai-helpers'
 
-const SESSION_DIR = join(homedir(), '.quick-launcher')
+const SESSION_DIR = join(homedir(), '.brain-dump')
 const SESSION_FILE = join(SESSION_DIR, 'last-session-id')
 
 export interface ChunkSender {
@@ -142,7 +142,7 @@ export async function handleAIQuery(
   console.log(`[ai:query] Received (${requestId}):`, query.slice(0, 80), `(${attachments.length} attachments)`)
 
   if (!aiService.isAvailable()) {
-    sender.send('AI is not configured. Set API keys in ~/.quick-launcher/config.toml')
+    sender.send('AI is not configured. Set API keys in ~/.brain-dump/config.toml')
     sender.finish(false)
     return
   }

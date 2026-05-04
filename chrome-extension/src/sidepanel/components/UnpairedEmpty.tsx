@@ -5,9 +5,9 @@ interface UnpairedEmptyProps {
 export function UnpairedEmpty({ reason }: UnpairedEmptyProps) {
   return (
     <div className="qlx-empty">
-      <div className="qlx-empty-title">Pair with the launcher</div>
+      <div className="qlx-empty-title">Pair with Brain Dump</div>
       <div className="qlx-empty-hint">
-        {reason ?? 'Open the desktop launcher and copy the token from ~/.quick-launcher/extension-token, then paste it in settings.'}
+        {reason ?? 'Open Brain Dump and copy the token from ~/.brain-dump/extension-token, then paste it in settings.'}
       </div>
       <button className="qlx-button" onClick={() => chrome.runtime.openOptionsPage()}>
         Open settings

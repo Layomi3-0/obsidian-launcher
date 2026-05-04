@@ -49,10 +49,10 @@ export function OptionsApp() {
 
   return (
     <div className="qlx-options">
-      <div className="qlx-options-eyebrow">Quick Launcher</div>
+      <div className="qlx-options-eyebrow">Brain Dump</div>
       <h1 className="qlx-options-title">Pair with the desktop app</h1>
       <p className="qlx-options-subtitle">
-        The side panel talks to your launcher over a localhost WebSocket. Paste the token below and test the connection.
+        The side panel talks to Brain Dump over a localhost WebSocket. Paste the token below and test the connection.
       </p>
 
       <div className="qlx-options-section">
@@ -68,7 +68,7 @@ export function OptionsApp() {
           autoComplete="off"
         />
         <div className="qlx-options-help">
-          Find it at <code>~/.quick-launcher/extension-token</code>. Run <code>cat ~/.quick-launcher/extension-token</code> in your terminal and paste the value.
+          Find it at <code>~/.brain-dump/extension-token</code>. Run <code>cat ~/.brain-dump/extension-token</code> in your terminal and paste the value.
         </div>
 
         <label className="qlx-options-label" style={{ marginTop: 18 }} htmlFor="qlx-endpoint">Endpoint</label>
@@ -123,7 +123,7 @@ function testConnection(endpoint: string, token: string): Promise<{ ok: boolean;
     const probe = new Bridge()
     const timeout = window.setTimeout(() => {
       probe.disconnect()
-      resolve({ ok: false, message: 'Timeout — is the launcher running?' })
+      resolve({ ok: false, message: 'Timeout — is Brain Dump running?' })
     }, 4000)
     probe.connect(endpoint, token).then(
       () => {

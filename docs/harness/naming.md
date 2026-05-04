@@ -152,7 +152,7 @@ Don't prefix every name with the project name. Shorter names are better when con
 
 ```typescript
 // Bad — inside electron/services/vault.ts
-class QuickLauncherVaultService { ... }
+class BrainDumpVaultService { ... }
 
 // Good
 class VaultService { ... }

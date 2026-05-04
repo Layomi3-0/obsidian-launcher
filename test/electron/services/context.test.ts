@@ -77,7 +77,7 @@ describe('ContextService', () => {
     expect(mockWriteFileSync).toHaveBeenCalledOnce()
     const writtenPath = (mockWriteFileSync.mock.calls[0] as any)[0] as string
     expect(writtenPath).toContain('CONTEXT.md')
-    expect(writtenPath).toContain('.quick-launcher')
+    expect(writtenPath).toContain('.brain-dump')
   })
 
   it('rebuild() writes content with vault overview', async () => {

@@ -41,7 +41,7 @@ export interface AIConfig {
 }
 
 export function loadAIConfig(): AIConfig {
-  const configPath = join(homedir(), '.quick-launcher', 'config.toml')
+  const configPath = join(homedir(), '.brain-dump', 'config.toml')
   const defaults: AIConfig = {
     provider: 'claude',
     geminiApiKey: process.env.GEMINI_API_KEY || '',

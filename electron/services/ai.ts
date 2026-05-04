@@ -58,7 +58,7 @@ export class AIService {
     }
 
     if (!this.geminiClient && !this.anthropicClient) {
-      console.warn('[ai] No AI provider configured — set keys in ~/.quick-launcher/config.toml')
+      console.warn('[ai] No AI provider configured — set keys in ~/.brain-dump/config.toml')
     }
   }
 
@@ -84,7 +84,7 @@ export class AIService {
 
   async *streamQuery(query: string, session: SessionContext, attachments: Attachment[] = [], signal?: AbortSignal): AsyncGenerator<string> {
     if (!this.isAvailable()) {
-      yield 'No AI provider configured. Add API keys to ~/.quick-launcher/config.toml'
+      yield 'No AI provider configured. Add API keys to ~/.brain-dump/config.toml'
       return
     }
 

@@ -13,7 +13,7 @@ High-level modules must not depend on low-level modules. Both depend on abstract
 class PromptAssembler {
   private fs = require('fs')  // tied to filesystem
   assemble(query: string): string {
-    const core = this.fs.readFileSync('~/.quick-launcher/prompts/CORE.md')
+    const core = this.fs.readFileSync('~/.brain-dump/prompts/CORE.md')
     // ...
   }
 }

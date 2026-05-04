@@ -15,7 +15,7 @@ export function Header({ status, statusError, onNewChat, onLoadConversation }: H
   return (
     <div className="qlx-header">
       <span className={`qlx-status-dot ${status}`} />
-      <span className="qlx-header-title">Quick Launcher</span>
+      <span className="qlx-header-title">Brain Dump</span>
       <span className="qlx-header-status" title={statusError ?? ''}>{labelFor(status)}</span>
       <div className="qlx-header-actions">
         <IconButton title="New chat (⌘N)" onClick={onNewChat}><PlusIcon /></IconButton>
