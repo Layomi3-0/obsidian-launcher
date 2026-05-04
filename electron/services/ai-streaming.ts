@@ -129,12 +129,16 @@ function toGeminiToolResponse(name: string, result: { message: string; success: 
 function buildGeminiMessageParts(text: string, attachments: Attachment[]): any[] {
   const parts: any[] = []
   for (const att of attachments) {
-    if (att.mimeType.startsWith('image/')) {
+    if (isInlineableAttachment(att)) {
       parts.push({ inlineData: { mimeType: att.mimeType, data: att.base64 } })
     }
   }
   parts.push({ text })
   return parts
+}
+
+function isInlineableAttachment(att: Attachment): boolean {
+  return att.mimeType.startsWith('image/') || att.mimeType === 'application/pdf'
 }
 
 // --- Claude ---
@@ -201,12 +205,8 @@ function toClaudeMessages(
   if (attachments.length > 0) {
     const contentBlocks: any[] = []
     for (const att of attachments) {
-      if (att.mimeType.startsWith('image/')) {
-        contentBlocks.push({
-          type: 'image',
-          source: { type: 'base64', media_type: att.mimeType, data: att.base64 },
-        })
-      }
+      const block = toClaudeAttachmentBlock(att)
+      if (block) contentBlocks.push(block)
     }
     contentBlocks.push({ type: 'text', text: userMessage })
     messages.push({ role: 'user', content: contentBlocks })
@@ -215,6 +215,22 @@ function toClaudeMessages(
   }
 
   return messages
+}
+
+function toClaudeAttachmentBlock(att: Attachment): any | null {
+  if (att.mimeType.startsWith('image/')) {
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: att.mimeType, data: att.base64 },
+    }
+  }
+  if (att.mimeType === 'application/pdf') {
+    return {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: att.base64 },
+    }
+  }
+  return null
 }
 
 function startClaudeStream(

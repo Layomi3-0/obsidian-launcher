@@ -10,7 +10,7 @@ export default defineConfig({
           main: resolve('electron/main.ts'),
           worker: resolve('electron/worker.ts'),
         },
-        external: ['better-sqlite3', '@anthropic-ai/sdk'],
+        external: ['better-sqlite3', '@anthropic-ai/sdk', 'ws'],
       },
     },
   },

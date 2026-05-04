@@ -1,8 +1,9 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { useRef, useEffect, useMemo, useState } from 'react'
 import { marked } from 'marked'
 import { hideWindow } from '@/lib/ipc'
 import type { ChatMessage } from '@/hooks/useSearch'
 import { CaptureButton } from './CaptureButton'
+import { CopyButton } from './CopyButton'
 
 interface AIResponseProps {
   messages: ChatMessage[]
@@ -30,9 +31,35 @@ export function renderMarkdown(text: string): string {
 
 export function MarkdownContent({ content, isStreaming, isLast }: { content: string; isStreaming: boolean; isLast: boolean }) {
   const html = useMemo(() => renderMarkdown(content), [content])
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const preBlocks = container.querySelectorAll('pre')
+    preBlocks.forEach((pre) => {
+      if (pre.querySelector('.pre-copy-btn')) return
+      pre.style.position = 'relative'
+      const btn = document.createElement('button')
+      btn.className = 'pre-copy-btn'
+      btn.title = 'Copy code'
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`
+      btn.addEventListener('click', () => {
+        const code = pre.querySelector('code')
+        navigator.clipboard.writeText(code?.textContent ?? pre.textContent ?? '')
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>`
+        setTimeout(() => {
+          btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>`
+        }, 1500)
+      })
+      pre.appendChild(btn)
+    })
+  }, [html])
 
   return (
     <div
+      ref={containerRef}
       className={`markdown-body${isLast && isStreaming ? ' animate-typewriter-cursor' : ''}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
@@ -160,12 +187,18 @@ function UserBubble({ content, attachments }: { content: string; attachments?: i
 }
 
 function AssistantBubble({ content, isLast, isStreaming, interrupted }: { content: string; isLast: boolean; isStreaming: boolean; interrupted?: boolean }) {
+  const [hovered, setHovered] = useState(false)
   const showThinking = isLast && isStreaming && !content && !interrupted
   const isCancelling = isLast && isStreaming && interrupted
   const showInterruptedLabel = interrupted && !isStreaming
+  const showCopy = hovered && content && !isStreaming
 
   return (
-    <div style={{ padding: '4px 20px' }}>
+    <div
+      style={{ padding: '4px 20px' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div style={{ maxWidth: '95%' }}>
         {showThinking ? (
           <ThinkingDots />
@@ -184,6 +217,11 @@ function AssistantBubble({ content, isLast, isStreaming, interrupted }: { conten
             fontFamily: "'SF Mono', Menlo, monospace",
           }}>
             [interrupted]
+          </div>
+        )}
+        {showCopy && (
+          <div style={{ display: 'flex', gap: '5px', marginTop: '4px' }}>
+            <CopyButton content={content} mode="text" />
           </div>
         )}
       </div>
@@ -244,6 +282,8 @@ export function AIResponse({ messages, isStreaming }: AIResponseProps) {
         gap: '6px',
         paddingTop: '8px',
         paddingBottom: '6px',
+        userSelect: 'text',
+        cursor: 'text',
       }}
     >
       {messages.length === 0 && (

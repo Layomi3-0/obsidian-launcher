@@ -8,7 +8,8 @@ An AI-powered system-wide launcher for macOS built with Electron. It replaces Sp
 
 1. Read `PLAN.md` — it has the full build plan with phases, types, IPC channels, and acceptance criteria.
 2. Read `docs/PRD.md` — it has the product vision and architectural decisions.
-3. The `prompts/` directory contains default prompt files that get copied to `~/.quick-launcher/prompts/` on first run. These define the AI's personality and behavior.
+3. Read `docs/harness/README.md` — it has the Clean Code harness. All code must pass through these guardrails.
+4. The `prompts/` directory contains default prompt files that get copied to `~/.quick-launcher/prompts/` on first run. These define the AI's personality and behavior.
 
 ## Architecture
 
@@ -59,90 +60,35 @@ The `prompts/` directory contains the default AI personality. On first run, thes
 
 Requires `GEMINI_API_KEY` and `VAULT_PATH` either as env vars or in `~/.quick-launcher/config.toml`.
 
-## Clean Code Principles
+## Clean Code Harness
 
-When writing code, strictly follow these Clean Code principles.
+All code must follow the Clean Code harness in `docs/harness/`. The full guides live there — this section is the enforced summary.
 
-### Foundational Rules
+**Read the harness:** `docs/harness/README.md` is the entry point.
 
-1. **Code without tests is not clean** - Always write tests first or alongside production code
-2. **Clean code reads like well-written prose** - Make it simple, direct, and expressive
-3. **Focus on three key aspects**:
-   - Reduced duplication (DRY principle)
-   - High expressiveness (meaningful names, clear intent)
-   - Tiny abstractions (small, focused units)
+### Hard Limits
 
-### Naming Conventions
+| Constraint | Limit |
+|---|---|
+| Lines per file | ~250 (max 400) |
+| Lines per function | 2–20 (max 40) |
+| Function arguments | 0–2 (3+ must wrap in object) |
+| Indent depth | 1–2 levels |
+| Boolean parameters | 0 — split the function |
 
-- Use **intent-revealing names** - the name should answer why it exists, what it does, and how it's used
-- **Classes**: Use nouns or noun phrases (e.g., Customer, Account, AddressParser)
-- **Methods**: Use verbs or verb phrases (e.g., postPayment, deletePage, save)
-- Make names **pronounceable and searchable**
-- **Pick one word per concept** - don't mix fetch, retrieve, and get for the same operation
+### Non-Negotiable Rules
 
-### Functions
-
-- **Functions should be small** - ideally 2-4 lines, rarely more than 20 lines
-- **Do ONE thing** - functions should do one thing, do it well, and do it only
-- **Ideal argument count: 0-2** - avoid 3+ arguments
-- **Never use flag arguments** (boolean parameters)
-- **Command Query Separation** - functions should either do something OR answer something, not both
-- **Don't Repeat Yourself (DRY)** - eliminate duplication
-
-#### One Level of Abstraction Per Function
-
-**A function should do one thing at one level of abstraction.** Think in terms of "distance from the problem domain":
-
-| Level    | Example                      | Meaning               |
-| -------- | ---------------------------- | --------------------- |
-| High     | "Register user"              | Business intent       |
-| Medium   | "Validate email"             | Domain operation      |
-| Low      | `if (email.contains("@"))`   | Implementation detail |
-| Very Low | `charAt(3)`                  | Mechanical detail     |
-
-**Mixing these levels in one function is problematic** - your brain keeps switching gears (Uncle Bob calls this "mental stack pollution").
-
-**Bad example (mixed levels):**
-```java
-void registerUser(HttpRequest request) {
-    String email = request.getBody().get("email");  // Low-level HTTP detail
-    if (!email.contains("@")) { throw new IllegalArgumentException(); }  // Low-level validation
-    User user = new User(email, Status.ACTIVE);     // Domain construction
-    userRepository.save(user);                      // Persistence detail
-}
-```
-
-**Good example (single level):**
-```java
-void registerUser(RegisterUserRequest request) {
-    User user = createUser(request);
-    saveUser(user);
-    notifyUser(user);
-}
-```
-Every line answers: "What does registering a user mean?" - no sudden drops into implementation detail.
-
-#### The Step-Down Rule
-
-**Code should read like a top-down narrative.** We want to read the program as a set of TO paragraphs:
-
-- **Top level:** "TO register the user..."
-- **Next level:** "TO create the user... TO save the user... TO notify the user..."
-- **Next level:** "TO validate email... TO construct value objects..."
-
-**You step down gradually—never abruptly.** Each function should be followed by those at the next level of abstraction. Your program should read like a well-written document where each section explains WHAT is happening and points to lower sections for HOW.
-
-**Quick tests for abstraction violations:**
-1. "Does any line feel like it belong in a different function?"
-2. "Would I explain this line to a junior developer using different vocabulary?"
-
-If yes → abstraction leak.
-
-**One-sentence takeaway:** A function should tell one story, using one vocabulary, at one zoom level.
+1. **One level of abstraction per function.** Never mix business intent with implementation detail.
+2. **One responsibility per file.** If you can't describe it in 25 words without "and"/"or"/"but", split it.
+3. **Step-down rule.** Code reads top-down: headline, then details. Callers above callees.
+4. **One word per concept.** Check `docs/harness/vocabulary.md` before naming anything.
+5. **No side effects.** A function does what its name says. Nothing hidden.
+6. **Command Query Separation.** Functions either do something or answer something. Never both.
+7. **Tests first.** Code without tests is not clean.
+8. **Boy Scout Rule.** Leave every file cleaner than you found it.
 
 ### General Rules
 
-- **Follow the Boy Scout Rule**: Leave the code cleaner than you found it
 - **Avoid over-engineering**: Only make changes that are directly requested or clearly necessary
 - **No premature optimization**: Don't add configurability, abstractions, or helpers for hypothetical future needs
 - **Trust internal code**: Only validate at system boundaries (user input, external APIs)

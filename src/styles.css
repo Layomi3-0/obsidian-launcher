@@ -215,6 +215,8 @@ kbd:hover {
   line-height: 22px;
   letter-spacing: -0.005em;
   word-wrap: break-word;
+  user-select: text;
+  cursor: text;
 }
 
 .markdown-body h1,
@@ -277,6 +279,34 @@ kbd:hover {
   border-radius: 8px;
   padding: 10px 14px;
   overflow-x: auto;
+}
+
+.markdown-body pre .pre-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  user-select: none;
+}
+
+.markdown-body pre:hover .pre-copy-btn {
+  opacity: 1;
+}
+
+.markdown-body pre .pre-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .markdown-body pre code {

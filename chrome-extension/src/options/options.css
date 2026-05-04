@@ -1,0 +1,112 @@
+html, body, #root {
+  height: auto;
+  min-height: 100%;
+  background: rgba(20, 20, 24, 1);
+}
+
+.qlx-options {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+  font-family: 'Avenir Next', 'Avenir', -apple-system, sans-serif;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.qlx-options-eyebrow {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(168, 140, 255, 0.65);
+  margin-bottom: 14px;
+}
+
+.qlx-options-title {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.92);
+  margin: 0 0 10px 0;
+}
+
+.qlx-options-subtitle {
+  font-size: 13.5px;
+  line-height: 22px;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 32px 0;
+}
+
+.qlx-options-section {
+  background: rgba(28, 28, 32, 1);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 22px 22px 20px;
+  margin-bottom: 18px;
+}
+
+.qlx-options-label {
+  display: block;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+  margin-bottom: 8px;
+}
+
+.qlx-options-input {
+  width: 100%;
+  padding: 9px 12px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  color: rgba(255, 250, 245, 0.85);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.005em;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+.qlx-options-input:focus {
+  border-color: rgba(168, 140, 255, 0.4);
+}
+
+.qlx-options-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.qlx-options-status {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.qlx-options-status.ok { color: #7adc9b; }
+.qlx-options-status.err { color: rgba(248, 130, 130, 0.85); }
+.qlx-options-status.warn { color: rgba(248, 180, 100, 0.85); }
+
+.qlx-options-help {
+  font-size: 12px;
+  line-height: 19px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 14px;
+}
+
+.qlx-options-help code {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: rgba(255, 200, 140, 0.85);
+}

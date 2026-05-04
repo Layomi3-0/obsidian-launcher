@@ -14,6 +14,8 @@ import { loadConfig } from './config'
 import type { AppConfig } from './config'
 import { createWindow, toggleWindow, getMainWindow } from './window'
 import { registerIpcHandlers } from './ipc-handlers'
+import { startExtensionBridge } from './services/extension-bridge'
+import type { WebSocketServer } from 'ws'
 
 // ── Services ──
 
@@ -25,6 +27,7 @@ let aiService: AIService
 let contextService: ContextService
 let obsidianCLI: ObsidianCLI
 let embeddingWorker: Worker | null = null
+let extensionBridge: WebSocketServer | null = null
 
 // ── App Lifecycle ──
 
@@ -46,6 +49,7 @@ app.whenReady().then(() => {
   })
   registerServiceInitHandler()
   registerProjectSummaryHandler()
+  startBridge()
 
   if (config.onboarded) startVaultServices(config)
 
@@ -170,7 +174,21 @@ app.on('will-quit', () => {
   memoryService?.close()
   vaultService?.stop()
   obsidianCLI?.stop()
+  extensionBridge?.close()
 })
+
+function startBridge(): void {
+  try {
+    extensionBridge = startExtensionBridge({
+      getAIService: () => aiService,
+      getMemoryService: () => memoryService,
+      getSearchService: () => searchService,
+      getObsidianCLI: () => obsidianCLI,
+    })
+  } catch (err) {
+    console.error('[main] Failed to start extension bridge:', err)
+  }
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

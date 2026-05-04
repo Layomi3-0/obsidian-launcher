@@ -1,6 +1,10 @@
 import { useRef, useEffect, useCallback } from 'react'
 import type { Attachment } from '@/lib/types'
 
+function isSupportedAttachment(file: { type: string }): boolean {
+  return file.type.startsWith('image/') || file.type === 'application/pdf'
+}
+
 interface SearchInputProps {
   query: string
   mode: 'local' | 'ai' | 'idle' | 'history'
@@ -105,7 +109,7 @@ function AttachButton({ onClick }: { onClick: () => void }) {
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      title="Attach file (images)"
+      title="Attach file (images, PDFs)"
       className="attach-button"
       style={{
         flexShrink: 0,
@@ -313,10 +317,10 @@ export function SearchInput({
   }, [resizeTextarea])
 
   const processFiles = useCallback(async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
-    if (imageFiles.length === 0) return
+    const accepted = Array.from(files).filter(isSupportedAttachment)
+    if (accepted.length === 0) return
 
-    const parsed = await Promise.all(imageFiles.map(readFileAsAttachment))
+    const parsed = await Promise.all(accepted.map(readFileAsAttachment))
     onAddAttachments?.(parsed)
   }, [onAddAttachments])
 
@@ -324,11 +328,11 @@ export function SearchInput({
     const items = e.clipboardData?.items
     if (!items) return
 
-    const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'))
-    if (imageItems.length === 0) return
+    const acceptedItems = Array.from(items).filter(isSupportedAttachment)
+    if (acceptedItems.length === 0) return
 
     e.preventDefault()
-    const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[]
+    const files = acceptedItems.map(item => item.getAsFile()).filter(Boolean) as File[]
     await processFiles(files)
   }, [processFiles])
 
@@ -423,7 +427,7 @@ export function SearchInput({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           multiple
           style={{ display: 'none' }}
           onChange={handleFileChange}

@@ -1,11 +1,29 @@
 import type { BrowserWindow } from 'electron'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
 import type { AIService } from './services/ai'
 import type { MemoryService } from './services/memory'
 import { estimateTokens, CONTEXT_BUDGET } from './services/ai-helpers'
 
+const SESSION_DIR = join(homedir(), '.quick-launcher')
+const SESSION_FILE = join(SESSION_DIR, 'last-session-id')
+
+export interface ChunkSender {
+  send(chunk: string): void
+  finish(interrupted: boolean): void
+}
+
+export function createWindowSender(window: BrowserWindow | null, requestId: string): ChunkSender {
+  return {
+    send: (chunk) => window?.webContents.send('ai:chunk', { requestId, chunk, done: false }),
+    finish: (interrupted) => window?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted }),
+  }
+}
+
 // ── Session State ──
 
-let currentSessionId = `session-${Date.now()}`
+let currentSessionId = loadOrCreateSessionId()
 let lastNoteOpened: string | null = null
 let lastInvocationDate: string | null = null
 
@@ -15,11 +33,36 @@ export function getCurrentSessionId(): string {
 
 export function setCurrentSessionId(id: string): void {
   currentSessionId = id
+  persistSessionId(id)
 }
 
 export function resetSessionId(): string {
   currentSessionId = `session-${Date.now()}`
+  persistSessionId(currentSessionId)
   return currentSessionId
+}
+
+function loadOrCreateSessionId(): string {
+  try {
+    if (existsSync(SESSION_FILE)) {
+      const id = readFileSync(SESSION_FILE, 'utf-8').trim()
+      if (id) return id
+    }
+  } catch (err) {
+    console.warn('[ai-handler] failed to read persisted session ID:', err)
+  }
+  const fresh = `session-${Date.now()}`
+  persistSessionId(fresh)
+  return fresh
+}
+
+function persistSessionId(id: string): void {
+  try {
+    if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true })
+    writeFileSync(SESSION_FILE, id, 'utf-8')
+  } catch (err) {
+    console.warn('[ai-handler] failed to persist session ID:', err)
+  }
 }
 
 export function getLastNoteOpened(): string | null {
@@ -67,13 +110,13 @@ export function cancelRequest(requestId: string): void {
   activeRequests.delete(requestId)
 }
 
-function scheduleCancelSafety(requestId: string, window: import('electron').BrowserWindow | null): void {
+function scheduleCancelSafety(requestId: string, sender: ChunkSender): void {
   const timeout = setTimeout(() => {
     cancelTimeouts.delete(requestId)
     if (pendingCancels.has(requestId)) {
       console.warn(`[ai:cancel] Force-finishing stale request ${requestId}`)
       pendingCancels.delete(requestId)
-      window?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted: true })
+      sender.finish(true)
     }
   }, 3000)
   cancelTimeouts.set(requestId, timeout)
@@ -91,13 +134,12 @@ function clearCancelSafety(requestId: string): void {
 export async function handleAIQuery(
   requestId: string,
   query: string,
-  mainWindow: BrowserWindow | null,
+  sender: ChunkSender,
   aiService: AIService,
   memoryService: MemoryService,
   attachments: Attachment[] = [],
 ): Promise<void> {
   console.log(`[ai:query] Received (${requestId}):`, query.slice(0, 80), `(${attachments.length} attachments)`)
-  const sender = createChunkSender(mainWindow, requestId)
 
   if (!aiService.isAvailable()) {
     sender.send('AI is not configured. Set API keys in ~/.quick-launcher/config.toml')
@@ -108,9 +150,8 @@ export async function handleAIQuery(
   const controller = new AbortController()
   activeRequests.set(requestId, controller)
 
-  // If this request gets cancelled, start a safety timer to force-finish if the stream hangs
   controller.signal.addEventListener('abort', () => {
-    scheduleCancelSafety(requestId, mainWindow)
+    scheduleCancelSafety(requestId, sender)
   }, { once: true })
 
   try {
@@ -189,18 +230,6 @@ function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const e = err as { name?: string; message?: string }
   return e.name === 'AbortError' || e.name === 'APIUserAbortError' || e.message?.toLowerCase().includes('abort') === true
-}
-
-interface ChunkSender {
-  send(chunk: string): void
-  finish(interrupted: boolean): void
-}
-
-function createChunkSender(window: BrowserWindow | null, requestId: string): ChunkSender {
-  return {
-    send: (chunk) => window?.webContents.send('ai:chunk', { requestId, chunk, done: false }),
-    finish: (interrupted) => window?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted }),
-  }
 }
 
 type ConversationMessage = { role: 'user' | 'assistant'; content: string }

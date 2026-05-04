@@ -123,6 +123,8 @@ export class PromptService {
   assembleSystemPrompt(skillName?: string): string {
     const parts: string[] = []
 
+    parts.push(`## Current Date\n\nToday is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`)
+
     const core = this.loadPrompt('CORE.md')
     if (core) parts.push(core)
 

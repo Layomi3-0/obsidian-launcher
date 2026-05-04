@@ -28,7 +28,7 @@ export function useAppKeyboard(params: UseAppKeyboardParams) {
   const [convIndex, setConvIndex] = useState(0)
   const [previewVisible, setPreviewVisible] = useState(false)
 
-  const isSlashMode = params.query.startsWith('/') && params.chatMessages.length === 0 && !params.isStreaming && params.mode !== 'history'
+  const isSlashMode = params.query.startsWith('/') && !params.query.includes(' ') && params.chatMessages.length === 0 && !params.isStreaming && params.mode !== 'history'
   const filteredCommands = isSlashMode ? filterCommands(params.query) : []
 
   const selectCommand = useCallback((cmd: SlashCommand) => {
@@ -91,7 +91,7 @@ function handleSlashNav(
   if (e.key === 'ArrowDown') { e.preventDefault(); setCmdIndex(i => Math.min(i + 1, commands.length - 1)); return true }
   if (e.key === 'ArrowUp') { e.preventDefault(); setCmdIndex(i => Math.max(i - 1, 0)); return true }
   if (e.key === 'Tab') { e.preventDefault(); selectCommand(commands[cmdIndex]); return true }
-  if (e.key === 'Enter' && query === commands[cmdIndex]?.name) { e.preventDefault(); selectCommand(commands[cmdIndex]); return true }
+  if (e.key === 'Enter') { e.preventDefault(); selectCommand(commands[cmdIndex]); return true }
 
   return false
 }

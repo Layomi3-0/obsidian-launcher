@@ -10,7 +10,7 @@ import { ObsidianCLI } from './services/obsidian-cli'
 import { loadConfig } from './config'
 import { hideWindow, setCompact, setExpanded } from './window'
 import { registerConfigHandlers } from './ipc-config'
-import { handleAIQuery, cancelRequest, getCurrentSessionId, setCurrentSessionId, resetSessionId, getLastNoteOpened, setLastNoteOpened, isFirstInvocationToday } from './ai-handler'
+import { handleAIQuery, cancelRequest, getCurrentSessionId, setCurrentSessionId, resetSessionId, getLastNoteOpened, setLastNoteOpened, isFirstInvocationToday, createWindowSender } from './ai-handler'
 
 interface Services {
   mainWindow: BrowserWindow
@@ -116,14 +116,11 @@ async function captureNote(obsidianCLI: ObsidianCLI, content: string, suggestedP
 
 function registerAIHandlers(mainWindow: BrowserWindow, getAIService: () => AIService, getMemoryService: () => MemoryService): void {
   ipcMain.on('ai:query', (_event, requestId: string, query: string, attachments?: { id: string; name: string; mimeType: string; base64: string; size: number }[]) => {
-    handleAIQuery(requestId, query, mainWindow, getAIService(), getMemoryService(), attachments ?? []).catch((err) => {
+    const sender = createWindowSender(mainWindow, requestId)
+    handleAIQuery(requestId, query, sender, getAIService(), getMemoryService(), attachments ?? []).catch((err) => {
       console.error('[ai:query] Unhandled error:', err)
-      mainWindow?.webContents.send('ai:chunk', {
-        requestId,
-        chunk: `Error: ${err instanceof Error ? err.message : String(err)}`,
-        done: false,
-      })
-      mainWindow?.webContents.send('ai:chunk', { requestId, chunk: '', done: true, interrupted: false })
+      sender.send(`Error: ${err instanceof Error ? err.message : String(err)}`)
+      sender.finish(false)
     })
   })
 
