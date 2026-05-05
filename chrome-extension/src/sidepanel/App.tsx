@@ -22,6 +22,7 @@ export function App() {
   const [status, setStatus] = useState<ConnectionStatus>('idle')
   const [statusError, setStatusError] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [bridgeReady, setBridgeReady] = useState(false)
   const [query, setQuery] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -38,7 +39,7 @@ export function App() {
     [activeTab.id, mentionedTabs],
   )
 
-  useEffect(() => { void initBridge(setToken, setStatus, setStatusError) }, [])
+  useEffect(() => { void initBridge(setToken, setStatus, setStatusError, setBridgeReady) }, [])
   useEffect(() => subscribeChunks(activeRequestIdRef, setMessages, setIsStreaming), [])
   useEffect(() => watchActiveTab(setActiveTab), [])
   useEffect(() => attachSidepanelLifecycle(), [])
@@ -105,7 +106,7 @@ export function App() {
 
   useEffect(() => attachNewChatShortcut(handleNewChat), [])
 
-  if (token === null && status === 'idle') {
+  if (!bridgeReady) {
     return <div className="qlx-app"><LoadingState /></div>
   }
 
@@ -175,9 +176,11 @@ async function initBridge(
   setToken: (t: string | null) => void,
   setStatus: (s: ConnectionStatus) => void,
   setStatusError: (e: string | null) => void,
+  setBridgeReady: (b: boolean) => void,
 ): Promise<void> {
   const [savedToken, endpoint] = await Promise.all([loadToken(), loadEndpoint()])
   setToken(savedToken)
+  setBridgeReady(true)
   if (!savedToken) {
     setStatus('idle')
     return
